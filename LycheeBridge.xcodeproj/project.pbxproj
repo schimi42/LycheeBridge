@@ -1,0 +1,546 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A00100000000000000000001 /* LycheeBridgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000001 /* LycheeBridgeApp.swift */; };
+		A00100000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000002 /* ContentView.swift */; };
+		A00100000000000000000003 /* AppViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000003 /* AppViewModel.swift */; };
+		A00100000000000000000004 /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000004 /* AppGroup.swift */; };
+		A00100000000000000000005 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000005 /* Models.swift */; };
+		A00100000000000000000006 /* SharedImportStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000006 /* SharedImportStore.swift */; };
+		A00100000000000000000007 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000007 /* KeychainStore.swift */; };
+		A00100000000000000000008 /* LycheeConfigurationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000008 /* LycheeConfigurationStore.swift */; };
+		A00100000000000000000009 /* LycheeAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000009 /* LycheeAPI.swift */; };
+		A0010000000000000000000A /* UploadCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000000A /* UploadCoordinator.swift */; };
+		A0010000000000000000000B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000000B /* Assets.xcassets */; };
+		A0010000000000000000000C /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000000C /* ShareViewController.swift */; };
+		A0010000000000000000000D /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000004 /* AppGroup.swift */; };
+		A0010000000000000000000E /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000005 /* Models.swift */; };
+		A0010000000000000000000F /* SharedImportStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000006 /* SharedImportStore.swift */; };
+		A00100000000000000000010 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000007 /* KeychainStore.swift */; };
+		A00100000000000000000011 /* LycheeConfigurationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000008 /* LycheeConfigurationStore.swift */; };
+		A00100000000000000000012 /* LycheeAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000009 /* LycheeAPI.swift */; };
+		A00100000000000000000013 /* UploadCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000000A /* UploadCoordinator.swift */; };
+		A00100000000000000000014 /* LycheeBridgeShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A0020000000000000000000E /* LycheeBridgeShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A00910000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A00700000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A00500000000000000000002;
+			remoteInfo = LycheeBridgeShare;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A00330000000000000000001 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A00100000000000000000014 /* LycheeBridgeShare.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		A00200000000000000000001 /* LycheeBridgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LycheeBridgeApp.swift; sourceTree = "<group>"; };
+		A00200000000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A00200000000000000000003 /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppViewModel.swift; sourceTree = "<group>"; };
+		A00200000000000000000004 /* AppGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGroup.swift; sourceTree = "<group>"; };
+		A00200000000000000000005 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		A00200000000000000000006 /* SharedImportStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedImportStore.swift; sourceTree = "<group>"; };
+		A00200000000000000000007 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
+		A00200000000000000000008 /* LycheeConfigurationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LycheeConfigurationStore.swift; sourceTree = "<group>"; };
+		A00200000000000000000009 /* LycheeAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LycheeAPI.swift; sourceTree = "<group>"; };
+		A0020000000000000000000A /* UploadCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadCoordinator.swift; sourceTree = "<group>"; };
+		A0020000000000000000000B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A0020000000000000000000C /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		A0020000000000000000000D /* LycheeBridge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LycheeBridge.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A0020000000000000000000E /* LycheeBridgeShare.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LycheeBridgeShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A0020000000000000000000F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A00200000000000000000010 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A00200000000000000000011 /* LycheeBridge.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LycheeBridge.entitlements; sourceTree = "<group>"; };
+		A00200000000000000000012 /* LycheeBridgeShare.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LycheeBridgeShare.entitlements; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A00300000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A00300000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A00400000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				A00400000000000000000002 /* LycheeBridge */,
+				A00400000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A00400000000000000000002 /* LycheeBridge */ = {
+			isa = PBXGroup;
+			children = (
+				A00400000000000000000004 /* App */,
+				A00400000000000000000005 /* ShareExtension */,
+				A00400000000000000000006 /* Shared */,
+				A00400000000000000000007 /* Resources */,
+			);
+			path = LycheeBridge;
+			sourceTree = "<group>";
+		};
+		A00400000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A0020000000000000000000D /* LycheeBridge.app */,
+				A0020000000000000000000E /* LycheeBridgeShare.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A00400000000000000000004 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				A00200000000000000000001 /* LycheeBridgeApp.swift */,
+				A00200000000000000000002 /* ContentView.swift */,
+				A00200000000000000000003 /* AppViewModel.swift */,
+				A0020000000000000000000F /* Info.plist */,
+				A00200000000000000000011 /* LycheeBridge.entitlements */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		A00400000000000000000005 /* ShareExtension */ = {
+			isa = PBXGroup;
+			children = (
+				A0020000000000000000000C /* ShareViewController.swift */,
+				A00200000000000000000010 /* Info.plist */,
+				A00200000000000000000012 /* LycheeBridgeShare.entitlements */,
+			);
+			path = ShareExtension;
+			sourceTree = "<group>";
+		};
+		A00400000000000000000006 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				A00200000000000000000004 /* AppGroup.swift */,
+				A00200000000000000000005 /* Models.swift */,
+				A00200000000000000000006 /* SharedImportStore.swift */,
+				A00200000000000000000007 /* KeychainStore.swift */,
+				A00200000000000000000008 /* LycheeConfigurationStore.swift */,
+				A00200000000000000000009 /* LycheeAPI.swift */,
+				A0020000000000000000000A /* UploadCoordinator.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		A00400000000000000000007 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A0020000000000000000000B /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A00500000000000000000001 /* LycheeBridge */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00600000000000000000001 /* Build configuration list for PBXNativeTarget "LycheeBridge" */;
+			buildPhases = (
+				A00310000000000000000001 /* Sources */,
+				A00300000000000000000001 /* Frameworks */,
+				A00320000000000000000001 /* Resources */,
+				A00330000000000000000001 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A00900000000000000000001 /* PBXTargetDependency */,
+			);
+			name = LycheeBridge;
+			productName = LycheeBridge;
+			productReference = A0020000000000000000000D /* LycheeBridge.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A00500000000000000000002 /* LycheeBridgeShare */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00600000000000000000002 /* Build configuration list for PBXNativeTarget "LycheeBridgeShare" */;
+			buildPhases = (
+				A00310000000000000000002 /* Sources */,
+				A00300000000000000000002 /* Frameworks */,
+				A00320000000000000000002 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LycheeBridgeShare;
+			productName = LycheeBridgeShare;
+			productReference = A0020000000000000000000E /* LycheeBridgeShare.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A00700000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2604;
+				LastUpgradeCheck = 2640;
+				TargetAttributes = {
+					A00500000000000000000001 = {
+						CreatedOnToolsVersion = 26.4;
+						SystemCapabilities = {
+							com.apple.ApplicationGroups.iOS = {
+								enabled = 1;
+							};
+						};
+					};
+					A00500000000000000000002 = {
+						CreatedOnToolsVersion = 26.4;
+						SystemCapabilities = {
+							com.apple.ApplicationGroups.iOS = {
+								enabled = 1;
+							};
+						};
+					};
+				};
+			};
+			buildConfigurationList = A00600000000000000000003 /* Build configuration list for PBXProject "LycheeBridge" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A00400000000000000000001;
+			productRefGroup = A00400000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A00500000000000000000001 /* LycheeBridge */,
+				A00500000000000000000002 /* LycheeBridgeShare */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A00320000000000000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A0010000000000000000000B /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A00320000000000000000002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A00310000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A00100000000000000000001 /* LycheeBridgeApp.swift in Sources */,
+				A00100000000000000000002 /* ContentView.swift in Sources */,
+				A00100000000000000000003 /* AppViewModel.swift in Sources */,
+				A00100000000000000000004 /* AppGroup.swift in Sources */,
+				A00100000000000000000005 /* Models.swift in Sources */,
+				A00100000000000000000006 /* SharedImportStore.swift in Sources */,
+				A00100000000000000000007 /* KeychainStore.swift in Sources */,
+				A00100000000000000000008 /* LycheeConfigurationStore.swift in Sources */,
+				A00100000000000000000009 /* LycheeAPI.swift in Sources */,
+				A0010000000000000000000A /* UploadCoordinator.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A00310000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A0010000000000000000000C /* ShareViewController.swift in Sources */,
+				A0010000000000000000000D /* AppGroup.swift in Sources */,
+				A0010000000000000000000E /* Models.swift in Sources */,
+				A0010000000000000000000F /* SharedImportStore.swift in Sources */,
+				A00100000000000000000010 /* KeychainStore.swift in Sources */,
+				A00100000000000000000011 /* LycheeConfigurationStore.swift in Sources */,
+				A00100000000000000000012 /* LycheeAPI.swift in Sources */,
+				A00100000000000000000013 /* UploadCoordinator.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A00900000000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A00500000000000000000002 /* LycheeBridgeShare */;
+			targetProxy = A00910000000000000000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		A00800000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = F88CM8CA3Z;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		A00800000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = F88CM8CA3Z;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		A00800000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = LycheeBridge/App/LycheeBridge.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = F88CM8CA3Z;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = LycheeBridge/App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = de.lumirio.LycheeBridge;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				REGISTER_APP_GROUPS = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		A00800000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = LycheeBridge/App/LycheeBridge.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = F88CM8CA3Z;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = LycheeBridge/App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = de.lumirio.LycheeBridge;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				REGISTER_APP_GROUPS = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		A00800000000000000000005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = LycheeBridge/ShareExtension/LycheeBridgeShare.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = F88CM8CA3Z;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = LycheeBridge/ShareExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/../../Frameworks",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = de.lumirio.LycheeBridge.ShareExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				REGISTER_APP_GROUPS = YES;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		A00800000000000000000006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = LycheeBridge/ShareExtension/LycheeBridgeShare.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = F88CM8CA3Z;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = LycheeBridge/ShareExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/../../Frameworks",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = de.lumirio.LycheeBridge.ShareExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				REGISTER_APP_GROUPS = YES;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A00600000000000000000001 /* Build configuration list for PBXNativeTarget "LycheeBridge" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A00800000000000000000003 /* Debug */,
+				A00800000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A00600000000000000000002 /* Build configuration list for PBXNativeTarget "LycheeBridgeShare" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A00800000000000000000005 /* Debug */,
+				A00800000000000000000006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A00600000000000000000003 /* Build configuration list for PBXProject "LycheeBridge" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A00800000000000000000001 /* Debug */,
+				A00800000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A00700000000000000000001 /* Project object */;
+}

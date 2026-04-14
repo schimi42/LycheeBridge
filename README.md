@@ -17,4 +17,4 @@ Before shipping or signing this app, update the following placeholders:
   - `de.lumirio.LycheeBridge.ShareExtension`
 - URL scheme: `lycheebridge`
 
-For local development without a paid Apple Developer account, the project now avoids App Groups and uses a shared folder under `~/Library/Application Support/de.lumirio.LycheeBridge` for handoff between the app and the share extension.
+The host app and share extension exchange imported photos through the App Group container `group.de.lumirio.LycheeBridge`. Both targets need the App Group entitlement for sharing configuration and incoming photo bundles.

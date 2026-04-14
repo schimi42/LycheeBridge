@@ -5,7 +5,6 @@ enum AppGroup {
     static let incomingURLScheme = "lycheebridge"
     static let incomingURLHost = "import"
     static let importsDirectoryName = "IncomingBundles"
-    static let configurationDomain = "LycheeConfiguration"
 }
 
 enum SharedPaths {

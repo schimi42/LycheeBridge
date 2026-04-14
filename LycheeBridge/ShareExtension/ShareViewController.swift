@@ -30,7 +30,7 @@ final class ShareViewController: NSViewController {
         do {
             let files = try await collectPendingFiles()
             statusModel.message = "Imported \(files.count == 1 ? "1 photo" : "\(files.count) photos"). Opening LycheeBridge…"
-            let bundle = try importStore.createBundle(items: files, sourceApplication: "Finder")
+            let bundle = try importStore.createBundle(items: files, sourceApplication: "Share Extension")
             try openHostApp(bundleID: bundle.id)
             extensionContext?.completeRequest(returningItems: nil, completionHandler: nil)
         } catch {
@@ -80,6 +80,7 @@ final class ShareViewController: NSViewController {
             let originalSourceURL = try? await provider.loadOriginalFileURL()
             let importedURL = try await provider.loadBridgeFileRepresentation(
                 forTypeIdentifier: typeIdentifier,
+                type: type,
                 preferredSourceURL: originalSourceURL
             )
             let originalFilename = preferredFilename(
@@ -174,7 +175,7 @@ private extension NSItemProvider {
         }
 
         return try await withCheckedThrowingContinuation { continuation in
-            _ = self.loadItem(forTypeIdentifier: fileURLType, options: nil) { item, error in
+            self.loadItem(forTypeIdentifier: fileURLType, options: nil) { item, error in
                 if let error {
                     continuation.resume(throwing: error)
                     return
@@ -202,15 +203,15 @@ private extension NSItemProvider {
         }
     }
 
-    func loadBridgeFileRepresentation(forTypeIdentifier typeIdentifier: String, preferredSourceURL: URL?) async throws -> URL {
+    func loadBridgeFileRepresentation(forTypeIdentifier typeIdentifier: String, type: UTType, preferredSourceURL: URL?) async throws -> URL {
         if let preferredSourceURL {
             return preferredSourceURL
         }
 
-        return try await loadBridgeCopiedFileRepresentation(forTypeIdentifier: typeIdentifier)
+        return try await loadBridgeCopiedFileRepresentation(forTypeIdentifier: typeIdentifier, type: type)
     }
 
-    private func loadBridgeCopiedFileRepresentation(forTypeIdentifier typeIdentifier: String) async throws -> URL {
+    private func loadBridgeCopiedFileRepresentation(forTypeIdentifier typeIdentifier: String, type: UTType) async throws -> URL {
         try await withCheckedThrowingContinuation { continuation in
             _ = self.loadFileRepresentation(forTypeIdentifier: typeIdentifier) { url, error in
                 if let error {
@@ -222,9 +223,30 @@ private extension NSItemProvider {
                     continuation.resume(throwing: SharedStoreError.unsupportedItemProvider)
                     return
                 }
-                continuation.resume(returning: url)
+
+                do {
+                    let stableURL = try Self.copyProviderTemporaryFile(url, type: type)
+                    continuation.resume(returning: stableURL)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
             }
         }
+    }
+
+    nonisolated private static func copyProviderTemporaryFile(_ sourceURL: URL, type: UTType) throws -> URL {
+        let stagingDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LycheeBridgeShareStaging", isDirectory: true)
+        try FileManager.default.createDirectory(at: stagingDirectory, withIntermediateDirectories: true)
+
+        let extensionFromSource = sourceURL.pathExtension
+        let extensionFromType = type.preferredFilenameExtension ?? ""
+        let fileExtension = extensionFromSource.isEmpty ? extensionFromType : extensionFromSource
+        let filename = fileExtension.isEmpty ? UUID().uuidString : "\(UUID().uuidString).\(fileExtension)"
+        let destinationURL = stagingDirectory.appendingPathComponent(filename, isDirectory: false)
+
+        try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+        return destinationURL
     }
 }
 

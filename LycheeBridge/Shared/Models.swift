@@ -22,20 +22,6 @@ struct ShareImportBundle: Codable, Identifiable, Hashable {
     }
 }
 
-struct BridgedImportItem: Codable, Hashable {
-    let fileURL: URL
-    let displayName: String
-    let originalFilename: String
-    let mimeType: String
-    let typeIdentifier: String
-}
-
-struct BridgedImportManifest: Codable, Hashable {
-    let createdAt: Date
-    let sourceApplication: String?
-    let items: [BridgedImportItem]
-}
-
 struct LycheeConfiguration: Codable, Hashable {
     var serverURLString: String = ""
     var username: String = ""

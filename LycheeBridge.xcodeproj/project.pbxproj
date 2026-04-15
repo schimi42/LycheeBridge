@@ -27,6 +27,10 @@
 		A00100000000000000000012 /* LycheeAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000009 /* LycheeAPI.swift */; };
 		A00100000000000000000013 /* UploadCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000000A /* UploadCoordinator.swift */; };
 		A00100000000000000000014 /* LycheeBridgeShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A0020000000000000000000E /* LycheeBridgeShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A00100000000000000000015 /* LycheeDebugTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000013 /* LycheeDebugTrace.swift */; };
+		A00100000000000000000016 /* LycheeResponseParsers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000014 /* LycheeResponseParsers.swift */; };
+		A00100000000000000000017 /* LycheeDebugTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000013 /* LycheeDebugTrace.swift */; };
+		A00100000000000000000018 /* LycheeResponseParsers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000014 /* LycheeResponseParsers.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -72,6 +76,8 @@
 		A00200000000000000000010 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A00200000000000000000011 /* LycheeBridge.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LycheeBridge.entitlements; sourceTree = "<group>"; };
 		A00200000000000000000012 /* LycheeBridgeShare.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LycheeBridgeShare.entitlements; sourceTree = "<group>"; };
+		A00200000000000000000013 /* LycheeDebugTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LycheeDebugTrace.swift; sourceTree = "<group>"; };
+		A00200000000000000000014 /* LycheeResponseParsers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LycheeResponseParsers.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -151,6 +157,8 @@
 				A00200000000000000000007 /* KeychainStore.swift */,
 				A00200000000000000000008 /* LycheeConfigurationStore.swift */,
 				A00200000000000000000009 /* LycheeAPI.swift */,
+				A00200000000000000000013 /* LycheeDebugTrace.swift */,
+				A00200000000000000000014 /* LycheeResponseParsers.swift */,
 				A0020000000000000000000A /* UploadCoordinator.swift */,
 			);
 			path = Shared;
@@ -282,6 +290,8 @@
 				A00100000000000000000007 /* KeychainStore.swift in Sources */,
 				A00100000000000000000008 /* LycheeConfigurationStore.swift in Sources */,
 				A00100000000000000000009 /* LycheeAPI.swift in Sources */,
+				A00100000000000000000015 /* LycheeDebugTrace.swift in Sources */,
+				A00100000000000000000016 /* LycheeResponseParsers.swift in Sources */,
 				A0010000000000000000000A /* UploadCoordinator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -297,6 +307,8 @@
 				A00100000000000000000010 /* KeychainStore.swift in Sources */,
 				A00100000000000000000011 /* LycheeConfigurationStore.swift in Sources */,
 				A00100000000000000000012 /* LycheeAPI.swift in Sources */,
+				A00100000000000000000017 /* LycheeDebugTrace.swift in Sources */,
+				A00100000000000000000018 /* LycheeResponseParsers.swift in Sources */,
 				A00100000000000000000013 /* UploadCoordinator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

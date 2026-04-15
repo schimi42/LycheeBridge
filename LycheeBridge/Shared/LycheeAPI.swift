@@ -385,39 +385,14 @@ struct LycheeClient {
             stage: stage,
             requestURL: request.url?.absoluteString ?? "<missing>",
             method: request.httpMethod ?? "GET",
-            requestHeaders: redactedHeaders(request.allHTTPHeaderFields ?? [:]),
-            requestBody: debugBodyDescription(for: request),
+            requestHeaders: LycheeDebugRedactor.redactedHeaders(request.allHTTPHeaderFields ?? [:]),
+            requestBody: LycheeDebugRedactor.bodyDescription(for: request),
             responseStatus: responseStatus,
-            responseHeaders: redactedHeaders(responseHeaders),
-            responseBody: redactedBodyDescription(responseBody, contentType: responseHeaders.contentType),
+            responseHeaders: LycheeDebugRedactor.redactedHeaders(responseHeaders),
+            responseBody: LycheeDebugRedactor.responseBodyDescription(responseBody, contentType: responseHeaders.contentType),
             cookieDump: extra
         )
         debugRecorder(trace)
-    }
-
-    private func debugBodyDescription(for request: URLRequest) -> String {
-        guard let body = request.httpBody else {
-            return "<empty>"
-        }
-
-        let contentType = request.value(forHTTPHeaderField: "Content-Type")
-        if contentType?.localizedCaseInsensitiveContains("multipart/form-data") == true {
-            return "<multipart body: \(body.count) bytes>"
-        }
-
-        if contentType?.localizedCaseInsensitiveContains("application/json") == true {
-            return redactedJSONBodyDescription(body)
-        }
-
-        if contentType?.localizedCaseInsensitiveContains("application/x-www-form-urlencoded") == true {
-            return redactedFormBodyDescription(body)
-        }
-
-        guard let text = String(data: body, encoding: .utf8) else {
-            return "<\(body.count) bytes>"
-        }
-
-        return limitedDebugText(text)
     }
 
     private func cookieDebugDump() -> String {
@@ -434,97 +409,6 @@ struct LycheeClient {
             .joined(separator: "\n")
     }
 
-    private func redactedHeaders(_ headers: [String: String]) -> [String: String] {
-        headers.reduce(into: [:]) { partialResult, pair in
-            partialResult[pair.key] = isSensitiveDebugKey(pair.key) ? "<redacted>" : limitedDebugText(pair.value)
-        }
-    }
-
-    private func redactedBodyDescription(_ body: String, contentType: String?) -> String {
-        if contentType?.localizedCaseInsensitiveContains("application/json") == true,
-           let data = body.data(using: .utf8) {
-            return redactedJSONBodyDescription(data)
-        }
-
-        return limitedDebugText(body)
-    }
-
-    private func redactedJSONBodyDescription(_ body: Data) -> String {
-        guard let json = try? JSONSerialization.jsonObject(with: body) else {
-            let fallback = String(data: body, encoding: .utf8) ?? "<non-utf8 body: \(body.count) bytes>"
-            return limitedDebugText(fallback)
-        }
-
-        let redacted = redactedJSONValue(json)
-        guard JSONSerialization.isValidJSONObject(redacted),
-              let data = try? JSONSerialization.data(withJSONObject: redacted, options: [.prettyPrinted, .sortedKeys]),
-              let text = String(data: data, encoding: .utf8) else {
-            return limitedDebugText(String(describing: redacted))
-        }
-
-        return limitedDebugText(text)
-    }
-
-    private func redactedFormBodyDescription(_ body: Data) -> String {
-        guard let text = String(data: body, encoding: .utf8), text.isEmpty == false else {
-            return "<empty>"
-        }
-
-        let redactedPairs = text.split(separator: "&").map { pair -> String in
-            let parts = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
-            let rawKey = parts.first.map(String.init) ?? ""
-            let key = rawKey.removingPercentEncoding ?? rawKey
-            let value = parts.count > 1 ? String(parts[1]) : ""
-
-            if isSensitiveDebugKey(key) {
-                return "\(rawKey)=<redacted>"
-            }
-
-            return value.isEmpty ? rawKey : "\(rawKey)=\(value)"
-        }
-
-        return limitedDebugText(redactedPairs.joined(separator: "&"))
-    }
-
-    private func redactedJSONValue(_ value: Any) -> Any {
-        if let dictionary = value as? [String: Any] {
-            return dictionary.reduce(into: [String: Any]()) { partialResult, pair in
-                partialResult[pair.key] = isSensitiveDebugKey(pair.key) ? "<redacted>" : redactedJSONValue(pair.value)
-            }
-        }
-
-        if let array = value as? [Any] {
-            return array.map(redactedJSONValue)
-        }
-
-        return value
-    }
-
-    private func isSensitiveDebugKey(_ key: String) -> Bool {
-        let normalized = key.lowercased()
-        return normalized == "cookie" ||
-            normalized == "set-cookie" ||
-            normalized == "authorization" ||
-            normalized == "proxy-authorization" ||
-            normalized == "x-xsrf-token" ||
-            normalized == "x-csrf-token" ||
-            normalized.contains("password") ||
-            normalized.contains("passwd") ||
-            normalized.contains("secret") ||
-            normalized.contains("token") ||
-            normalized.contains("cookie") ||
-            normalized.contains("csrf") ||
-            normalized.contains("xsrf")
-    }
-
-    private func limitedDebugText(_ text: String, limit: Int = 12_000) -> String {
-        guard text.count > limit else {
-            return text
-        }
-
-        return String(text.prefix(limit)) + "\n<truncated: \(text.count - limit) characters hidden>"
-    }
-
     private func percentEncode(_ text: String) -> String {
         text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=+"))) ?? text
     }
@@ -536,52 +420,6 @@ struct LycheeClient {
         }
 
         return "application/octet-stream"
-    }
-}
-
-struct LycheeDebugTrace: Sendable {
-    let stage: String
-    let requestURL: String
-    let method: String
-    let requestHeaders: [String: String]
-    let requestBody: String
-    let responseStatus: Int?
-    let responseHeaders: [String: String]
-    let responseBody: String
-    let cookieDump: String
-
-    var formatted: String {
-        let headerLines = requestHeaders
-            .sorted { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending }
-            .map { "\($0): \($1)" }
-            .joined(separator: "\n")
-        let responseHeaderLines = responseHeaders
-            .sorted { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending }
-            .map { "\($0): \($1)" }
-            .joined(separator: "\n")
-
-        let statusText = responseStatus.map(String.init) ?? "<none>"
-
-        return """
-        [\(stage)]
-        URL: \(requestURL)
-        Method: \(method)
-        Headers:
-        \(headerLines.isEmpty ? "<none>" : headerLines)
-
-        Body:
-        \(requestBody)
-
-        Response Status: \(statusText)
-        Response Headers:
-        \(responseHeaderLines.isEmpty ? "<none>" : responseHeaderLines)
-
-        Response Body:
-        \(responseBody)
-
-        Cookies:
-        \(cookieDump)
-        """
     }
 }
 
@@ -625,121 +463,8 @@ private extension LycheeClientError {
     }
 }
 
-private enum AlbumResponseParser {
-    static func parseAlbums(from data: Data) throws -> [LycheeAlbum] {
-        let json = try JSONSerialization.jsonObject(with: data)
-        var albums: [LycheeAlbum] = []
-
-        if let dictionary = json as? [String: Any] {
-            collectAlbums(from: dictionary, into: &albums, parentPath: nil)
-        } else if let array = json as? [[String: Any]] {
-            for entry in array {
-                collectAlbums(from: entry, into: &albums, parentPath: nil)
-            }
-        } else {
-            throw SharedStoreError.invalidManifest
-        }
-
-        let unique = Dictionary(grouping: albums, by: \.id).compactMap { _, group in group.first }
-        return unique.sorted { $0.displayTitle.localizedCaseInsensitiveCompare($1.displayTitle) == .orderedAscending }
-    }
-
-    private static func collectAlbums(from dictionary: [String: Any], into albums: inout [LycheeAlbum], parentPath: String?) {
-        if let album = makeAlbum(from: dictionary, parentPath: parentPath) {
-            albums.append(album)
-        }
-
-        for key in ["albums", "children", "smart_albums", "shared", "shared_albums", "pinned_albums", "tag_albums", "nested"] {
-            if let childArray = dictionary[key] as? [[String: Any]] {
-                for child in childArray {
-                    let nextParentPath = makeAlbum(from: dictionary, parentPath: parentPath)?.displayTitle ?? parentPath
-                    collectAlbums(from: child, into: &albums, parentPath: nextParentPath)
-                }
-            }
-        }
-    }
-
-    private static func makeAlbum(from dictionary: [String: Any], parentPath: String?) -> LycheeAlbum? {
-        let id = stringValue(for: ["id", "albumID"], in: dictionary)
-        let title = stringValue(for: ["title"], in: dictionary)
-
-        guard let id, let title else {
-            return nil
-        }
-
-        let parentID = stringValue(for: ["parent_id", "parentID"], in: dictionary)
-        let path = parentPath.map { "\($0) / \(title)" } ?? title
-        return LycheeAlbum(id: id, title: title, parentID: parentID, path: path)
-    }
-
-    private static func stringValue(for keys: [String], in dictionary: [String: Any]) -> String? {
-        for key in keys {
-            if let string = dictionary[key] as? String, string.isEmpty == false {
-                return string
-            }
-            if let number = dictionary[key] as? NSNumber {
-                return number.stringValue
-            }
-        }
-        return nil
-    }
-}
-
-private enum UploadResponseParser {
-    static func parseRemoteID(from data: Data) -> String? {
-        guard let json = try? JSONSerialization.jsonObject(with: data) else {
-            let plain = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            return plain?.isEmpty == false ? plain : nil
-        }
-
-        if let string = json as? String, string.isEmpty == false {
-            return string
-        }
-
-        if let dictionary = json as? [String: Any] {
-            for key in ["id", "photoID", "photo_id"] {
-                if let value = dictionary[key] as? String, value.isEmpty == false {
-                    return value
-                }
-                if let value = dictionary[key] as? NSNumber {
-                    return value.stringValue
-                }
-            }
-        }
-
-        return nil
-    }
-
-    static func parseErrorMessage(from data: Data) -> String? {
-        guard let json = try? JSONSerialization.jsonObject(with: data),
-              let dictionary = json as? [String: Any] else {
-            return nil
-        }
-
-        if let status = dictionary["status"] as? String,
-           status.lowercased() == "error",
-           let message = dictionary["message"] as? String {
-            return message
-        }
-
-        if let message = dictionary["error"] as? String, message.isEmpty == false {
-            return message
-        }
-
-        return nil
-    }
-}
-
 private extension Data {
     mutating func appendString(_ value: String) {
         append(Data(value.utf8))
-    }
-}
-
-private extension Dictionary where Key == String, Value == String {
-    var contentType: String? {
-        first { key, _ in
-            key.localizedCaseInsensitiveCompare("Content-Type") == .orderedSame
-        }?.value
     }
 }

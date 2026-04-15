@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var viewModel = AppViewModel()
+    @ObservedObject var viewModel: AppViewModel
 
     var body: some View {
         NavigationStack {
@@ -10,7 +10,6 @@ struct ContentView: View {
                     configurationCard
                     importCard
                     uploadCard
-                    debugCard
                 }
                 .padding(24)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -153,25 +152,6 @@ struct ContentView: View {
                         .textSelection(.enabled)
                 }
                 .frame(minHeight: 56, maxHeight: 120)
-            }
-        }
-    }
-
-    private var debugCard: some View {
-        GroupBox("Debug Trace") {
-            VStack(alignment: .leading, spacing: 12) {
-                Toggle("Show request diagnostics", isOn: $viewModel.showDebugLog)
-                    .toggleStyle(.switch)
-
-                if viewModel.showDebugLog {
-                    ScrollView {
-                        Text(viewModel.debugLog)
-                            .font(.system(.caption, design: .monospaced))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .textSelection(.enabled)
-                    }
-                    .frame(minHeight: 180, maxHeight: 320)
-                }
             }
         }
     }

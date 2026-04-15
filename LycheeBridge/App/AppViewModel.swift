@@ -15,7 +15,6 @@ final class AppViewModel: ObservableObject {
     @Published var albumState: AsyncButtonState = .idle
     @Published var uploadState: AsyncButtonState = .idle
     @Published var debugLog: String = "No debug trace yet."
-    @Published var showDebugLog = true
 
     let uploader = UploadCoordinator()
 

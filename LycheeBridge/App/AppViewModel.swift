@@ -10,7 +10,10 @@ final class AppViewModel: ObservableObject {
     @Published var albums: [LycheeAlbum] = []
     @Published var selectedAlbumID: String = ""
     @Published var pendingBundle: ShareImportBundle?
-    @Published var statusMessage: String = "Configure your Lychee server to begin."
+    @Published var connectionMessage: String = "Configure your Lychee server to begin."
+    @Published var importMessage: String = "No pending photos."
+    @Published var destinationMessage: String = "Load albums to choose a destination."
+    @Published var uploadMessage: String = "Waiting for photos and a destination album."
     @Published var connectionState: AsyncButtonState = .idle
     @Published var albumState: AsyncButtonState = .idle
     @Published var uploadState: AsyncButtonState = .idle
@@ -30,16 +33,24 @@ final class AppViewModel: ObservableObject {
         } catch {
             self.configuration = LycheeConfiguration()
             self.credentials = LycheeCredentials()
-            self.statusMessage = error.localizedDescription
+            self.connectionMessage = error.localizedDescription
         }
     }
 
     var canUpload: Bool {
-        pendingBundle != nil && selectedAlbumID.isEmpty == false && uploadState.isRunning == false
+        pendingBundle != nil && selectedAlbumIsValid && uploadState.isRunning == false
     }
 
     var configuredServerLabel: String {
         configuration.serverURLString.isEmpty ? "Not configured" : configuration.serverURLString
+    }
+
+    var selectedAlbumIsValid: Bool {
+        albums.contains { $0.id == selectedAlbumID }
+    }
+
+    var selectedAlbumIsMissingFromLoadedAlbums: Bool {
+        selectedAlbumID.isEmpty == false && selectedAlbumIsValid == false
     }
 
     func loadInitialState() async {
@@ -58,9 +69,9 @@ final class AppViewModel: ObservableObject {
             do {
                 let bundle = try importStore.bundle(withID: uuid)
                 pendingBundle = bundle
-                statusMessage = "Loaded \(bundle.photoCountDescription) from \(bundle.sourceApplication ?? "Share Extension")."
+                importMessage = "Loaded \(bundle.photoCountDescription) from \(bundle.sourceApplication ?? "Share Extension")."
             } catch {
-                statusMessage = error.localizedDescription
+                importMessage = error.localizedDescription
             }
         } else {
             await refreshPendingBundle()
@@ -71,9 +82,9 @@ final class AppViewModel: ObservableObject {
         do {
             configuration.selectedAlbumID = selectedAlbumID
             try configurationStore.save(configuration: configuration, credentials: credentials)
-            statusMessage = "Saved Lychee connection settings."
+            connectionMessage = "Saved Lychee connection settings."
         } catch {
-            statusMessage = error.localizedDescription
+            connectionMessage = error.localizedDescription
         }
     }
 
@@ -94,16 +105,18 @@ final class AppViewModel: ObservableObject {
                 selectedAlbumID = albums.first?.id ?? ""
             }
             persistSelectedAlbumID()
-            statusMessage = "Connected to Lychee and loaded \(albums.count) albums."
+            connectionMessage = "Connected to Lychee."
+            destinationMessage = albums.isEmpty ? "Connected, but no albums are available." : "Loaded \(albums.count) albums."
             connectionState = .succeeded
         } catch {
-            statusMessage = error.localizedDescription
+            connectionMessage = error.localizedDescription
             connectionState = .failed
         }
     }
 
     func refreshAlbums() async {
         albumState = .running
+        destinationMessage = "Loading albums…"
 
         do {
             let client = makeClient()
@@ -116,10 +129,10 @@ final class AppViewModel: ObservableObject {
                 selectedAlbumID = albums.first?.id ?? ""
             }
             persistSelectedAlbumID()
-            statusMessage = albums.isEmpty ? "Connected, but no albums are available." : "Album list refreshed."
+            destinationMessage = albums.isEmpty ? "Connected, but no albums are available." : "Album list refreshed."
             albumState = .succeeded
         } catch {
-            statusMessage = error.localizedDescription
+            destinationMessage = error.localizedDescription
             albumState = .failed
         }
     }
@@ -128,20 +141,28 @@ final class AppViewModel: ObservableObject {
         do {
             pendingBundle = try importStore.latestBundle()
             if let pendingBundle {
-                statusMessage = "Ready to upload \(pendingBundle.photoCountDescription)."
+                importMessage = "Ready to upload \(pendingBundle.photoCountDescription)."
+            } else {
+                importMessage = "No pending photos."
             }
         } catch {
-            statusMessage = error.localizedDescription
+            importMessage = error.localizedDescription
         }
     }
 
     func uploadPendingPhotos() async {
         guard let pendingBundle else {
-            statusMessage = "No shared photos are waiting to upload."
+            uploadMessage = "No shared photos are waiting to upload."
+            return
+        }
+
+        guard selectedAlbumIsValid else {
+            uploadMessage = "Choose a destination album before uploading."
             return
         }
 
         uploadState = .running
+        uploadMessage = "Uploading \(pendingBundle.photoCountDescription)…"
         uploader.reset()
 
         let client = makeClient()
@@ -151,17 +172,18 @@ final class AppViewModel: ObservableObject {
             if case .failed = $0.status { return true }
             return false
         }) {
-            statusMessage = uploader.completedSummary
+            uploadMessage = uploader.completedSummary
             uploadState = .failed
         } else {
-            statusMessage = uploader.completedSummary
+            uploadMessage = uploader.completedSummary
             uploadState = .succeeded
             do {
                 try importStore.clear(bundleID: pendingBundle.id)
                 self.pendingBundle = nil
+                importMessage = "No pending photos."
                 scheduleAutomaticTerminationIfNeeded()
             } catch {
-                statusMessage += " Cleanup failed: \(error.localizedDescription)"
+                uploadMessage += " Cleanup failed: \(error.localizedDescription)"
             }
         }
     }
@@ -184,7 +206,7 @@ final class AppViewModel: ObservableObject {
         do {
             try configurationStore.save(configuration: configuration, credentials: credentials)
         } catch {
-            statusMessage = error.localizedDescription
+            destinationMessage = error.localizedDescription
         }
     }
 
@@ -193,7 +215,7 @@ final class AppViewModel: ObservableObject {
             return
         }
 
-        statusMessage = "\(uploader.completedSummary) Closing LycheeBridge…"
+        uploadMessage = "\(uploader.completedSummary) Closing LycheeBridge…"
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
             NSApplication.shared.terminate(nil)

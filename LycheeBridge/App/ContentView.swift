@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct ContentView: View {
@@ -6,10 +7,11 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    configurationCard
-                    importCard
-                    uploadCard
+                VStack(alignment: .leading, spacing: 18) {
+                    connectionSection
+                    pendingImportSection
+                    destinationSection
+                    uploadProgressSection
                 }
                 .padding(24)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -27,11 +29,11 @@ struct ContentView: View {
                 viewModel.persistSelectedAlbumID()
             }
         }
-        .frame(minWidth: 760, minHeight: 640)
+        .frame(minWidth: 800, minHeight: 680)
     }
 
-    private var configurationCard: some View {
-        GroupBox("Lychee Connection") {
+    private var connectionSection: some View {
+        GroupBox("Connection") {
             VStack(alignment: .leading, spacing: 12) {
                 TextField("https://gallery.example.com/", text: $viewModel.configuration.serverURLString)
                     .textFieldStyle(.roundedBorder)
@@ -59,12 +61,15 @@ struct ContentView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+
+                StatusLine(message: viewModel.connectionMessage, state: viewModel.connectionState)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
-    private var importCard: some View {
-        GroupBox("Incoming Photos") {
+    private var pendingImportSection: some View {
+        GroupBox("Pending Import") {
             VStack(alignment: .leading, spacing: 12) {
                 Label(viewModel.pendingBundle?.photoCountDescription ?? "No pending photos", systemImage: "photo.on.rectangle.angled")
                     .font(.headline)
@@ -73,36 +78,31 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
 
                 if let items = viewModel.pendingBundle?.items, items.isEmpty == false {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(items.prefix(8)) { item in
-                            HStack {
-                                Text(item.displayName)
-                                Spacer()
-                                Text(ByteCountFormatter.string(fromByteCount: item.fileSize, countStyle: .file))
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-
-                        if items.count > 8 {
-                            Text("And \(items.count - 8) more…")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
+                    PendingPhotoGrid(items: items)
+                    pendingFileList(items: items)
                 }
 
-                Button("Refresh Pending Import") {
-                    Task { await viewModel.refreshPendingBundle() }
+                HStack(spacing: 12) {
+                    Button("Refresh Pending Import") {
+                        Task { await viewModel.refreshPendingBundle() }
+                    }
+
+                    StatusLine(message: viewModel.importMessage, state: .idle)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
-    private var uploadCard: some View {
-        GroupBox("Album Upload") {
+    private var destinationSection: some View {
+        GroupBox("Destination") {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Picker("Destination Album", selection: $viewModel.selectedAlbumID) {
+                        if viewModel.selectedAlbumIsMissingFromLoadedAlbums {
+                            Text("Saved album selection").tag(viewModel.selectedAlbumID)
+                        }
+
                         if viewModel.albums.isEmpty {
                             Text("No albums loaded").tag("")
                         } else {
@@ -119,10 +119,20 @@ struct ContentView: View {
                     .disabled(viewModel.albumState.isRunning)
                 }
 
-                Button("Upload Photos") {
+                StatusLine(message: viewModel.destinationMessage, state: viewModel.albumState)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var uploadProgressSection: some View {
+        GroupBox("Upload Progress") {
+            VStack(alignment: .leading, spacing: 12) {
+                Button("Upload to Album") {
                     Task { await viewModel.uploadPendingPhotos() }
                 }
                 .buttonStyle(.borderedProminent)
+                .controlSize(.large)
                 .disabled(viewModel.canUpload == false)
 
                 if viewModel.uploader.isUploading || viewModel.uploader.results.isEmpty == false {
@@ -144,14 +154,27 @@ struct ContentView: View {
                     }
                 }
 
-                ScrollView {
-                    Text(viewModel.statusMessage)
-                        .font(.callout)
+                StatusLine(message: viewModel.uploadMessage, state: viewModel.uploadState)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func pendingFileList(items: [ImportedPhoto]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(items.prefix(8)) { item in
+                HStack {
+                    Text(item.displayName)
+                    Spacer()
+                    Text(ByteCountFormatter.string(fromByteCount: item.fileSize, countStyle: .file))
                         .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
                 }
-                .frame(minHeight: 56, maxHeight: 120)
+            }
+
+            if items.count > 8 {
+                Text("And \(items.count - 8) more...")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -185,6 +208,80 @@ struct ContentView: View {
             return .green
         case .failed:
             return .red
+        }
+    }
+}
+
+private struct StatusLine: View {
+    let message: String
+    let state: AsyncButtonState
+
+    var body: some View {
+        Text(message)
+            .font(.callout)
+            .foregroundStyle(color)
+            .textSelection(.enabled)
+    }
+
+    private var color: Color {
+        switch state {
+        case .failed:
+            return .red
+        case .succeeded:
+            return .green
+        case .idle, .running:
+            return .secondary
+        }
+    }
+}
+
+private struct PendingPhotoGrid: View {
+    let items: [ImportedPhoto]
+
+    private let columns = [
+        GridItem(.adaptive(minimum: 112, maximum: 140), spacing: 10)
+    ]
+
+    var body: some View {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+            ForEach(items) { item in
+                PendingPhotoThumbnail(item: item)
+            }
+        }
+    }
+}
+
+private struct PendingPhotoThumbnail: View {
+    let item: ImportedPhoto
+    @State private var image: NSImage?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(.quaternary)
+
+                if let image {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Image(systemName: "photo")
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 112, height: 112)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            Text(item.displayName)
+                .font(.caption)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(width: 112, alignment: .leading)
+        }
+        .task(id: item.fileURL) {
+            image = NSImage(contentsOf: item.fileURL)
         }
     }
 }

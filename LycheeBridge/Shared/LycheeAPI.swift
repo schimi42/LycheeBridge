@@ -385,11 +385,11 @@ struct LycheeClient {
             stage: stage,
             requestURL: request.url?.absoluteString ?? "<missing>",
             method: request.httpMethod ?? "GET",
-            requestHeaders: request.allHTTPHeaderFields ?? [:],
+            requestHeaders: redactedHeaders(request.allHTTPHeaderFields ?? [:]),
             requestBody: debugBodyDescription(for: request),
             responseStatus: responseStatus,
-            responseHeaders: responseHeaders,
-            responseBody: responseBody,
+            responseHeaders: redactedHeaders(responseHeaders),
+            responseBody: redactedBodyDescription(responseBody, contentType: responseHeaders.contentType),
             cookieDump: extra
         )
         debugRecorder(trace)
@@ -400,11 +400,24 @@ struct LycheeClient {
             return "<empty>"
         }
 
-        if let text = String(data: body, encoding: .utf8) {
-            return text
+        let contentType = request.value(forHTTPHeaderField: "Content-Type")
+        if contentType?.localizedCaseInsensitiveContains("multipart/form-data") == true {
+            return "<multipart body: \(body.count) bytes>"
         }
 
-        return "<\(body.count) bytes>"
+        if contentType?.localizedCaseInsensitiveContains("application/json") == true {
+            return redactedJSONBodyDescription(body)
+        }
+
+        if contentType?.localizedCaseInsensitiveContains("application/x-www-form-urlencoded") == true {
+            return redactedFormBodyDescription(body)
+        }
+
+        guard let text = String(data: body, encoding: .utf8) else {
+            return "<\(body.count) bytes>"
+        }
+
+        return limitedDebugText(text)
     }
 
     private func cookieDebugDump() -> String {
@@ -416,9 +429,100 @@ struct LycheeClient {
 
         return cookies
             .map { cookie in
-                "\(cookie.name)=\(cookie.value); domain=\(cookie.domain); path=\(cookie.path)"
+                "\(cookie.name)=<redacted>; domain=\(cookie.domain); path=\(cookie.path)"
             }
             .joined(separator: "\n")
+    }
+
+    private func redactedHeaders(_ headers: [String: String]) -> [String: String] {
+        headers.reduce(into: [:]) { partialResult, pair in
+            partialResult[pair.key] = isSensitiveDebugKey(pair.key) ? "<redacted>" : limitedDebugText(pair.value)
+        }
+    }
+
+    private func redactedBodyDescription(_ body: String, contentType: String?) -> String {
+        if contentType?.localizedCaseInsensitiveContains("application/json") == true,
+           let data = body.data(using: .utf8) {
+            return redactedJSONBodyDescription(data)
+        }
+
+        return limitedDebugText(body)
+    }
+
+    private func redactedJSONBodyDescription(_ body: Data) -> String {
+        guard let json = try? JSONSerialization.jsonObject(with: body) else {
+            let fallback = String(data: body, encoding: .utf8) ?? "<non-utf8 body: \(body.count) bytes>"
+            return limitedDebugText(fallback)
+        }
+
+        let redacted = redactedJSONValue(json)
+        guard JSONSerialization.isValidJSONObject(redacted),
+              let data = try? JSONSerialization.data(withJSONObject: redacted, options: [.prettyPrinted, .sortedKeys]),
+              let text = String(data: data, encoding: .utf8) else {
+            return limitedDebugText(String(describing: redacted))
+        }
+
+        return limitedDebugText(text)
+    }
+
+    private func redactedFormBodyDescription(_ body: Data) -> String {
+        guard let text = String(data: body, encoding: .utf8), text.isEmpty == false else {
+            return "<empty>"
+        }
+
+        let redactedPairs = text.split(separator: "&").map { pair -> String in
+            let parts = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            let rawKey = parts.first.map(String.init) ?? ""
+            let key = rawKey.removingPercentEncoding ?? rawKey
+            let value = parts.count > 1 ? String(parts[1]) : ""
+
+            if isSensitiveDebugKey(key) {
+                return "\(rawKey)=<redacted>"
+            }
+
+            return value.isEmpty ? rawKey : "\(rawKey)=\(value)"
+        }
+
+        return limitedDebugText(redactedPairs.joined(separator: "&"))
+    }
+
+    private func redactedJSONValue(_ value: Any) -> Any {
+        if let dictionary = value as? [String: Any] {
+            return dictionary.reduce(into: [String: Any]()) { partialResult, pair in
+                partialResult[pair.key] = isSensitiveDebugKey(pair.key) ? "<redacted>" : redactedJSONValue(pair.value)
+            }
+        }
+
+        if let array = value as? [Any] {
+            return array.map(redactedJSONValue)
+        }
+
+        return value
+    }
+
+    private func isSensitiveDebugKey(_ key: String) -> Bool {
+        let normalized = key.lowercased()
+        return normalized == "cookie" ||
+            normalized == "set-cookie" ||
+            normalized == "authorization" ||
+            normalized == "proxy-authorization" ||
+            normalized == "x-xsrf-token" ||
+            normalized == "x-csrf-token" ||
+            normalized.contains("password") ||
+            normalized.contains("passwd") ||
+            normalized.contains("secret") ||
+            normalized.contains("token") ||
+            normalized.contains("cookie") ||
+            normalized.contains("csrf") ||
+            normalized.contains("xsrf")
+    }
+
+    private func limitedDebugText(_ text: String, limit: Int = 12_000) -> String {
+        guard text.count > limit else {
+            return text
+        }
+
+        return String(text.prefix(limit)) + "\n<truncated: \(text.count - limit) characters hidden>"
     }
 
     private func percentEncode(_ text: String) -> String {
@@ -629,5 +733,13 @@ private enum UploadResponseParser {
 private extension Data {
     mutating func appendString(_ value: String) {
         append(Data(value.utf8))
+    }
+}
+
+private extension Dictionary where Key == String, Value == String {
+    var contentType: String? {
+        first { key, _ in
+            key.localizedCaseInsensitiveCompare("Content-Type") == .orderedSame
+        }?.value
     }
 }

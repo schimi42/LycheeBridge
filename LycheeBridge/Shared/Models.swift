@@ -27,7 +27,6 @@ struct LycheeConfiguration: Codable, Hashable {
     var username: String = ""
     var authMode: AuthMode = .sessionLogin
     var lastSuccessfulConnection: Date?
-    var lastAuthenticatedAt: Date?
     var selectedAlbumID: String = ""
     var automaticallyCloseAfterUpload: Bool = false
 
@@ -46,15 +45,6 @@ struct LycheeConfiguration: Codable, Hashable {
 
     var serverURL: URL? {
         URL(string: serverURLString.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-
-    var hasReusableAuthentication: Bool {
-        guard let lastAuthenticatedAt else {
-            return false
-        }
-
-        // Lychee currently returns session cookies with a 2 hour max-age.
-        return Date().timeIntervalSince(lastAuthenticatedAt) < (110 * 60)
     }
 }
 

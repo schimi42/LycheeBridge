@@ -85,7 +85,6 @@ final class AppViewModel: ObservableObject {
             let client = makeClient()
             let albums = try await client.testConnection()
             configuration.lastSuccessfulConnection = Date()
-            configuration.lastAuthenticatedAt = Date()
             try configurationStore.save(configuration: configuration, credentials: credentials)
             self.albums = albums
             if configuration.selectedAlbumID.isEmpty == false,

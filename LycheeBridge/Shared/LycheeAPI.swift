@@ -2,12 +2,16 @@ import Foundation
 import UniformTypeIdentifiers
 
 struct LycheeClient {
+    private static let authenticationRegistry = LycheeAuthenticationRegistry()
+    private static let loginThrottle = LycheeLoginThrottle()
+
     let configuration: LycheeConfiguration
     let credentials: LycheeCredentials
     let debugRecorder: (@Sendable (LycheeDebugTrace) -> Void)?
 
     private let session: URLSession
     private let cookieStorage: HTTPCookieStorage
+    private let sessionState = LycheeClientSessionState()
 
     init(
         configuration: LycheeConfiguration,
@@ -35,35 +39,37 @@ struct LycheeClient {
     }
 
     func fetchAlbums() async throws -> [LycheeAlbum] {
-        try await loginIfNeeded()
-        let payload = try await performFirstSuccessfulRequest(
-            candidatePaths: [
-                "api/v2/Albums",
-                "api/Albums"
-            ],
-            builder: { path in
-                try makeGETRequest(path: path)
-            }
-        )
+        let payload = try await performAuthenticatedRequest {
+            try await performFirstSuccessfulRequest(
+                candidatePaths: [
+                    "api/v2/Albums",
+                    "api/Albums"
+                ],
+                builder: { path in
+                    try makeGETRequest(path: path)
+                }
+            )
+        }
         return try AlbumResponseParser.parseAlbums(from: payload)
     }
 
     func upload(photo: ImportedPhoto, to albumID: String) async throws -> String? {
-        try await loginIfNeeded()
-        let payload = try await performFirstSuccessfulRequest(
-            candidatePaths: [
-                "api/v2/Photo",
-                "api/Photo"
-            ],
-            builder: { path in
-                try makeUploadRequest(path: path, photo: photo, albumID: albumID)
-            }
-        )
+        let payload = try await performAuthenticatedRequest {
+            try await performFirstSuccessfulRequest(
+                candidatePaths: [
+                    "api/v2/Photo",
+                    "api/Photo"
+                ],
+                builder: { path in
+                    try makeUploadRequest(path: path, photo: photo, albumID: albumID)
+                }
+            )
+        }
         return UploadResponseParser.parseRemoteID(from: payload)
     }
 
     private func loginIfNeeded() async throws {
-        guard let _ = normalizedBaseURL else {
+        guard let baseURL = normalizedBaseURL else {
             throw LycheeClientError.invalidServerURL
         }
 
@@ -74,11 +80,17 @@ struct LycheeClient {
             throw LycheeClientError.missingCredentials
         }
 
-        try await bootstrapSession()
+        try await bootstrapSessionIfNeeded()
 
-        if configuration.hasReusableAuthentication {
+        let key = authenticationKey(baseURL: baseURL, username: trimmedUsername)
+        let clientIsAuthenticated = await sessionState.isAuthenticated
+        let processIsAuthenticated = await Self.authenticationRegistry.isAuthenticated(for: key)
+        if clientIsAuthenticated || (hasReusableCookies(for: baseURL) && processIsAuthenticated) {
+            await sessionState.markAuthenticated()
             return
         }
+
+        try await Self.loginThrottle.prepareAttempt(for: key)
 
         let payload = try await performFirstSuccessfulRequest(
             candidatePaths: [
@@ -104,6 +116,25 @@ struct LycheeClient {
 
         if let apiError = UploadResponseParser.parseErrorMessage(from: payload) {
             throw LycheeClientError.server(message: apiError)
+        }
+
+        await sessionState.markAuthenticated()
+        await Self.authenticationRegistry.markAuthenticated(for: key)
+    }
+
+    private func performAuthenticatedRequest(_ operation: () async throws -> Data) async throws -> Data {
+        try await loginIfNeeded()
+
+        do {
+            return try await operation()
+        } catch let error as LycheeClientError where error.requiresAuthenticationRefresh {
+            if let key = currentAuthenticationKey {
+                await Self.authenticationRegistry.invalidate(for: key)
+            }
+            await sessionState.markUnauthenticated()
+
+            try await loginIfNeeded()
+            return try await operation()
         }
     }
 
@@ -203,7 +234,11 @@ struct LycheeClient {
         return url
     }
 
-    private func bootstrapSession() async throws {
+    private func bootstrapSessionIfNeeded() async throws {
+        guard await sessionState.needsBootstrap else {
+            return
+        }
+
         guard let baseURL = normalizedBaseURL else {
             throw LycheeClientError.invalidServerURL
         }
@@ -217,6 +252,7 @@ struct LycheeClient {
         }
         _ = try await performDataRequest(request, validateAPIError: false)
         recordDebugTrace(stage: "bootstrap", request: request, responseStatus: 200, responseBody: "Bootstrap completed", extra: cookieDebugDump())
+        await sessionState.markBootstrapped()
     }
 
     private func applyDefaultHeaders(to request: inout URLRequest, contentType: String) {
@@ -281,6 +317,33 @@ struct LycheeClient {
         }
 
         return "\(scheme)://\(host)"
+    }
+
+    private var currentAuthenticationKey: String? {
+        guard let baseURL = normalizedBaseURL else {
+            return nil
+        }
+
+        let trimmedUsername = configuration.username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedUsername.isEmpty == false else {
+            return nil
+        }
+
+        return authenticationKey(baseURL: baseURL, username: trimmedUsername)
+    }
+
+    private func authenticationKey(baseURL: URL, username: String) -> String {
+        "\(baseURL.absoluteString)|\(username)"
+    }
+
+    private func hasReusableCookies(for baseURL: URL) -> Bool {
+        guard let cookies = cookieStorage.cookies(for: baseURL) else {
+            return false
+        }
+
+        return cookies.contains { cookie in
+            cookie.isExpired == false && cookie.name.caseInsensitiveCompare("XSRF-TOKEN") != .orderedSame
+        }
     }
 
     private func performFirstSuccessfulRequest(
@@ -430,6 +493,7 @@ enum LycheeClientError: LocalizedError {
     case network(String)
     case httpError(statusCode: Int, message: String?)
     case server(message: String)
+    case loginRateLimited(retryAfter: TimeInterval)
 
     var errorDescription: String? {
         switch self {
@@ -448,6 +512,9 @@ enum LycheeClientError: LocalizedError {
             return "Lychee returned HTTP \(statusCode)."
         case let .server(message):
             return message
+        case let .loginRateLimited(retryAfter):
+            let seconds = max(Int(ceil(retryAfter)), 1)
+            return "Lychee login was attempted recently. Try again in \(seconds) seconds to avoid the server login rate limit."
         }
     }
 }
@@ -457,14 +524,88 @@ private extension LycheeClientError {
         switch self {
         case let .server(message):
             return message.localizedCaseInsensitiveContains("session expired")
+        case let .httpError(statusCode, _):
+            return statusCode == 401 || statusCode == 419
         default:
             return false
         }
+    }
+
+    var requiresAuthenticationRefresh: Bool {
+        isSessionExpiry
     }
 }
 
 private extension Data {
     mutating func appendString(_ value: String) {
         append(Data(value.utf8))
+    }
+}
+
+private extension HTTPCookie {
+    var isExpired: Bool {
+        guard let expiresDate else {
+            return false
+        }
+
+        return expiresDate <= Date()
+    }
+}
+
+private actor LycheeClientSessionState {
+    private var didBootstrap = false
+    private var didAuthenticate = false
+
+    var needsBootstrap: Bool {
+        didBootstrap == false
+    }
+
+    var isAuthenticated: Bool {
+        didAuthenticate
+    }
+
+    func markBootstrapped() {
+        didBootstrap = true
+    }
+
+    func markAuthenticated() {
+        didAuthenticate = true
+    }
+
+    func markUnauthenticated() {
+        didAuthenticate = false
+    }
+}
+
+private actor LycheeAuthenticationRegistry {
+    private var authenticatedKeys: Set<String> = []
+
+    func isAuthenticated(for key: String) -> Bool {
+        authenticatedKeys.contains(key)
+    }
+
+    func markAuthenticated(for key: String) {
+        authenticatedKeys.insert(key)
+    }
+
+    func invalidate(for key: String) {
+        authenticatedKeys.remove(key)
+    }
+}
+
+private actor LycheeLoginThrottle {
+    private let minimumInterval: TimeInterval = 6 * 60
+    private var lastAttempts: [String: Date] = [:]
+
+    func prepareAttempt(for key: String) throws {
+        let now = Date()
+        if let lastAttempt = lastAttempts[key] {
+            let elapsed = now.timeIntervalSince(lastAttempt)
+            if elapsed < minimumInterval {
+                throw LycheeClientError.loginRateLimited(retryAfter: minimumInterval - elapsed)
+            }
+        }
+
+        lastAttempts[key] = now
     }
 }

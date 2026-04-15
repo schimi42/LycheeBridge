@@ -41,6 +41,10 @@ final class AppViewModel: ObservableObject {
         pendingBundle != nil && selectedAlbumIsValid && uploadState.isRunning == false
     }
 
+    var canManagePendingImport: Bool {
+        pendingBundle != nil && uploadState.isRunning == false
+    }
+
     var configuredServerLabel: String {
         configuration.serverURLString.isEmpty ? "Not configured" : configuration.serverURLString
     }
@@ -145,6 +149,34 @@ final class AppViewModel: ObservableObject {
             } else {
                 importMessage = "No pending photos."
             }
+        } catch {
+            importMessage = error.localizedDescription
+        }
+    }
+
+    func revealImportedFiles() {
+        guard let pendingBundle else {
+            importMessage = "No imported files to reveal."
+            return
+        }
+
+        NSWorkspace.shared.activateFileViewerSelecting(pendingBundle.items.map(\.fileURL))
+        importMessage = "Opened imported files in Finder."
+    }
+
+    func clearPendingImport() {
+        guard let pendingBundle else {
+            importMessage = "No pending photos to clear."
+            return
+        }
+
+        do {
+            try importStore.clear(bundleID: pendingBundle.id)
+            self.pendingBundle = nil
+            uploader.reset()
+            importMessage = "Cleared pending import."
+            uploadMessage = "Waiting for photos and a destination album."
+            uploadState = .idle
         } catch {
             importMessage = error.localizedDescription
         }

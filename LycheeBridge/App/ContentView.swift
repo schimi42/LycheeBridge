@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ContentView: View {
     @ObservedObject var viewModel: AppViewModel
+    @State private var isConfirmingClearPendingImport = false
 
     var body: some View {
         NavigationStack {
@@ -87,7 +88,28 @@ struct ContentView: View {
                         Task { await viewModel.refreshPendingBundle() }
                     }
 
+                    Button("Reveal Imported Files") {
+                        viewModel.revealImportedFiles()
+                    }
+                    .disabled(viewModel.canManagePendingImport == false)
+
+                    Button("Clear Pending Import", role: .destructive) {
+                        isConfirmingClearPendingImport = true
+                    }
+                    .disabled(viewModel.canManagePendingImport == false)
+
                     StatusLine(message: viewModel.importMessage, state: .idle)
+                }
+                .confirmationDialog(
+                    "Clear the pending import?",
+                    isPresented: $isConfirmingClearPendingImport
+                ) {
+                    Button("Clear Pending Import", role: .destructive) {
+                        viewModel.clearPendingImport()
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("The copied files for this pending import will be removed from the shared container.")
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -138,12 +160,7 @@ struct ContentView: View {
                 if viewModel.uploader.isUploading || viewModel.uploader.results.isEmpty == false {
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(viewModel.uploader.results) { result in
-                            HStack {
-                                Text(result.itemName)
-                                Spacer()
-                                Text(statusLabel(for: result.status))
-                                    .foregroundStyle(statusColor(for: result.status))
-                            }
+                            UploadResultRow(result: result)
                         }
 
                         if viewModel.uploader.completedSummary.isEmpty == false {
@@ -187,29 +204,6 @@ struct ContentView: View {
         return "Last connected \(date.formatted(date: .abbreviated, time: .shortened))"
     }
 
-    private func statusLabel(for status: UploadResult.Status) -> String {
-        switch status {
-        case .pending:
-            return "Pending"
-        case .uploading:
-            return "Uploading"
-        case let .succeeded(remoteID):
-            return remoteID.map { "Uploaded (\($0))" } ?? "Uploaded"
-        case let .failed(message):
-            return "Failed: \(message)"
-        }
-    }
-
-    private func statusColor(for status: UploadResult.Status) -> Color {
-        switch status {
-        case .pending, .uploading:
-            return .secondary
-        case .succeeded:
-            return .green
-        case .failed:
-            return .red
-        }
-    }
 }
 
 private struct StatusLine: View {
@@ -247,6 +241,74 @@ private struct PendingPhotoGrid: View {
             ForEach(items) { item in
                 PendingPhotoThumbnail(item: item)
             }
+        }
+    }
+}
+
+private struct UploadResultRow: View {
+    let result: UploadResult
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: iconName)
+                .foregroundStyle(statusColor)
+                .frame(width: 18)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(result.itemName)
+                    .font(.callout)
+
+                Text(statusText)
+                    .font(.caption)
+                    .foregroundStyle(statusColor)
+                    .textSelection(.enabled)
+            }
+
+            Spacer()
+
+            if case .failed = result.status {
+                Button("Retry") {}
+                    .disabled(true)
+                    .help("Retry support will be added in a later step.")
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var iconName: String {
+        switch result.status {
+        case .pending:
+            return "circle"
+        case .uploading:
+            return "arrow.up.circle"
+        case .succeeded:
+            return "checkmark.circle.fill"
+        case .failed:
+            return "exclamationmark.circle.fill"
+        }
+    }
+
+    private var statusText: String {
+        switch result.status {
+        case .pending:
+            return "Waiting"
+        case .uploading:
+            return "Uploading"
+        case let .succeeded(remoteID):
+            return remoteID.map { "Uploaded as \($0)" } ?? "Uploaded"
+        case let .failed(message):
+            return "Failed: \(message)"
+        }
+    }
+
+    private var statusColor: Color {
+        switch result.status {
+        case .pending, .uploading:
+            return .secondary
+        case .succeeded:
+            return .green
+        case .failed:
+            return .red
         }
     }
 }

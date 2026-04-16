@@ -22,6 +22,7 @@ struct SharedImportStore {
 
             let attributes = try FileManager.default.attributesOfItem(atPath: destinationURL.path)
             let fileSize = attributes[.size] as? NSNumber
+            let metadata = PhotoMetadataExtractor.extract(from: destinationURL)
 
             return ImportedPhoto(
                 id: UUID(),
@@ -30,7 +31,8 @@ struct SharedImportStore {
                 mimeType: item.mimeType,
                 typeIdentifier: item.typeIdentifier,
                 fileSize: fileSize?.int64Value ?? 0,
-                fileURL: destinationURL
+                fileURL: destinationURL,
+                metadata: metadata
             )
         }
 

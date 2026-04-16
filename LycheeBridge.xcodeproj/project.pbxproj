@@ -31,6 +31,8 @@
 		A00100000000000000000016 /* LycheeResponseParsers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000014 /* LycheeResponseParsers.swift */; };
 		A00100000000000000000017 /* LycheeDebugTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000013 /* LycheeDebugTrace.swift */; };
 		A00100000000000000000018 /* LycheeResponseParsers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000014 /* LycheeResponseParsers.swift */; };
+		A00100000000000000000019 /* PhotoMetadataExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000015 /* PhotoMetadataExtractor.swift */; };
+		A0010000000000000000001A /* PhotoMetadataExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000015 /* PhotoMetadataExtractor.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -78,6 +80,7 @@
 		A00200000000000000000012 /* LycheeBridgeShare.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LycheeBridgeShare.entitlements; sourceTree = "<group>"; };
 		A00200000000000000000013 /* LycheeDebugTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LycheeDebugTrace.swift; sourceTree = "<group>"; };
 		A00200000000000000000014 /* LycheeResponseParsers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LycheeResponseParsers.swift; sourceTree = "<group>"; };
+		A00200000000000000000015 /* PhotoMetadataExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoMetadataExtractor.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -159,6 +162,7 @@
 				A00200000000000000000009 /* LycheeAPI.swift */,
 				A00200000000000000000013 /* LycheeDebugTrace.swift */,
 				A00200000000000000000014 /* LycheeResponseParsers.swift */,
+				A00200000000000000000015 /* PhotoMetadataExtractor.swift */,
 				A0020000000000000000000A /* UploadCoordinator.swift */,
 			);
 			path = Shared;
@@ -292,6 +296,7 @@
 				A00100000000000000000009 /* LycheeAPI.swift in Sources */,
 				A00100000000000000000015 /* LycheeDebugTrace.swift in Sources */,
 				A00100000000000000000016 /* LycheeResponseParsers.swift in Sources */,
+				A00100000000000000000019 /* PhotoMetadataExtractor.swift in Sources */,
 				A0010000000000000000000A /* UploadCoordinator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -309,6 +314,7 @@
 				A00100000000000000000012 /* LycheeAPI.swift in Sources */,
 				A00100000000000000000017 /* LycheeDebugTrace.swift in Sources */,
 				A00100000000000000000018 /* LycheeResponseParsers.swift in Sources */,
+				A0010000000000000000001A /* PhotoMetadataExtractor.swift in Sources */,
 				A00100000000000000000013 /* UploadCoordinator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -428,6 +434,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = LycheeBridge/App/LycheeBridge.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
@@ -437,6 +444,8 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LycheeBridge/App/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Lychee Bridge";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = de.lumirio.LycheeBridge;
@@ -451,6 +460,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = LycheeBridge/App/LycheeBridge.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
@@ -460,6 +470,8 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LycheeBridge/App/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Lychee Bridge";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = de.lumirio.LycheeBridge;
@@ -482,6 +494,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LycheeBridge/ShareExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Lychee Bridge";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"@executable_path/../../Frameworks",
 					"@executable_path/../Frameworks",
@@ -508,6 +521,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LycheeBridge/ShareExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Lychee Bridge";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"@executable_path/../../Frameworks",
 					"@executable_path/../Frameworks",

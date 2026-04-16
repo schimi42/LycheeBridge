@@ -8,6 +8,25 @@ struct ImportedPhoto: Codable, Identifiable, Hashable {
     let typeIdentifier: String
     let fileSize: Int64
     let fileURL: URL
+    let metadata: ImportedPhotoMetadata?
+}
+
+struct ImportedPhotoMetadata: Codable, Hashable {
+    let title: String?
+    let tags: [String]
+    let fields: [ImportedPhotoMetadataField]
+
+    var hasTransferableMetadata: Bool {
+        title?.isEmpty == false || tags.isEmpty == false
+    }
+}
+
+struct ImportedPhotoMetadataField: Codable, Hashable, Identifiable {
+    var id: String { "\(source).\(name).\(value)" }
+
+    let source: String
+    let name: String
+    let value: String
 }
 
 struct ShareImportBundle: Codable, Identifiable, Hashable {

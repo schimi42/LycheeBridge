@@ -60,6 +60,73 @@ enum AlbumResponseParser {
     }
 }
 
+enum TagResponseParser {
+    static func parseTags(from data: Data) throws -> [LycheeTag] {
+        let json = try JSONSerialization.jsonObject(with: data)
+        var tags: [LycheeTag] = []
+
+        if let dictionary = json as? [String: Any] {
+            if let tagArray = dictionary["tags"] as? [Any] {
+                collectTags(from: tagArray, into: &tags)
+            } else {
+                collectTag(from: dictionary, into: &tags)
+            }
+        } else if let array = json as? [Any] {
+            collectTags(from: array, into: &tags)
+        } else {
+            throw SharedStoreError.invalidManifest
+        }
+
+        let unique = Dictionary(grouping: tags, by: { $0.name.lowercased() }).compactMap { _, group in group.first }
+        return unique.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private static func collectTags(from array: [Any], into tags: inout [LycheeTag]) {
+        for entry in array {
+            if let dictionary = entry as? [String: Any] {
+                collectTag(from: dictionary, into: &tags)
+            } else if let string = entry as? String {
+                appendTag(id: string, name: string, into: &tags)
+            } else if let number = entry as? NSNumber {
+                appendTag(id: number.stringValue, name: number.stringValue, into: &tags)
+            }
+        }
+    }
+
+    private static func collectTag(from dictionary: [String: Any], into tags: inout [LycheeTag]) {
+        guard let name = stringValue(for: ["name", "tag", "title"], in: dictionary) else {
+            return
+        }
+
+        let id = stringValue(for: ["id", "tag_id", "tagID"], in: dictionary) ?? name
+        appendTag(id: id, name: name, into: &tags)
+    }
+
+    private static func appendTag(id: String, name: String, into tags: inout [LycheeTag]) {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedName.isEmpty == false else {
+            return
+        }
+
+        tags.append(LycheeTag(id: id, name: trimmedName))
+    }
+
+    private static func stringValue(for keys: [String], in dictionary: [String: Any]) -> String? {
+        for key in keys {
+            if let string = dictionary[key] as? String {
+                let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty == false {
+                    return trimmed
+                }
+            }
+            if let number = dictionary[key] as? NSNumber {
+                return number.stringValue
+            }
+        }
+        return nil
+    }
+}
+
 enum UploadResponseParser {
     static func parseRemoteID(from data: Data) -> String? {
         guard let json = try? JSONSerialization.jsonObject(with: data) else {
@@ -72,7 +139,7 @@ enum UploadResponseParser {
         }
 
         if let dictionary = json as? [String: Any] {
-            for key in ["id", "photoID", "photo_id"] {
+            for key in ["id", "photoID", "photo_id", "uuid_name", "uuidName"] {
                 if let value = dictionary[key] as? String, value.isEmpty == false {
                     return value
                 }
@@ -83,6 +150,58 @@ enum UploadResponseParser {
         }
 
         return nil
+    }
+
+    static func parseUploadedFilename(from data: Data) -> String? {
+        guard let json = try? JSONSerialization.jsonObject(with: data),
+              let dictionary = json as? [String: Any] else {
+            return nil
+        }
+
+        return stringValue(for: ["uuid_name", "uuidName", "file_name", "fileName"], in: dictionary)
+    }
+
+    static func parsePhotoID(
+        from data: Data,
+        matching uploadedFilename: String?,
+        originalFilename: String,
+        originalChecksum: String
+    ) -> String? {
+        guard let json = try? JSONSerialization.jsonObject(with: data) else {
+            return nil
+        }
+
+        var photos: [[String: Any]] = []
+        collectPhotoDictionaries(from: json, into: &photos)
+
+        let normalizedChecksum = originalChecksum.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalizedChecksum.isEmpty == false,
+           let id = uniquePhotoID(
+            in: photos,
+            where: { photo in
+                checksumValues(in: photo).contains(normalizedChecksum)
+            }
+           ) {
+            return id
+        }
+
+        let uploadedFilename = uploadedFilename?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let uploadedFilename, uploadedFilename.isEmpty == false {
+            if let id = uniquePhotoID(
+                in: photos,
+                where: { containsString(uploadedFilename, in: $0) }
+            ) {
+                return id
+            }
+        }
+
+        return uniquePhotoID(in: photos) { photo in
+            let candidateValues = stringValues(in: photo)
+            return candidateValues.contains {
+                $0.caseInsensitiveCompare(originalFilename) == .orderedSame
+                    || $0.localizedCaseInsensitiveContains(originalFilename)
+            }
+        }
     }
 
     static func parseErrorMessage(from data: Data) -> String? {
@@ -102,5 +221,94 @@ enum UploadResponseParser {
         }
 
         return nil
+    }
+
+    private static func collectPhotoDictionaries(from value: Any, into photos: inout [[String: Any]]) {
+        if let dictionary = value as? [String: Any] {
+            if stringValue(for: ["id", "photo_id", "photoID"], in: dictionary).map(isPhotoID) == true {
+                photos.append(dictionary)
+            }
+
+            for value in dictionary.values {
+                collectPhotoDictionaries(from: value, into: &photos)
+            }
+        } else if let array = value as? [Any] {
+            for value in array {
+                collectPhotoDictionaries(from: value, into: &photos)
+            }
+        }
+    }
+
+    private static func containsString(_ needle: String, in value: Any) -> Bool {
+        if let string = value as? String {
+            return string.localizedCaseInsensitiveContains(needle)
+        }
+
+        if let dictionary = value as? [String: Any] {
+            return dictionary.values.contains { containsString(needle, in: $0) }
+        }
+
+        if let array = value as? [Any] {
+            return array.contains { containsString(needle, in: $0) }
+        }
+
+        return false
+    }
+
+    private static func stringValues(in value: Any) -> [String] {
+        if let string = value as? String {
+            return [string]
+        }
+
+        if let dictionary = value as? [String: Any] {
+            return dictionary.values.flatMap(stringValues)
+        }
+
+        if let array = value as? [Any] {
+            return array.flatMap(stringValues)
+        }
+
+        return []
+    }
+
+    private static func checksumValues(in dictionary: [String: Any]) -> Set<String> {
+        Set(
+            ["checksum", "original_checksum"]
+                .compactMap { stringValue(for: [$0], in: dictionary)?.lowercased() }
+        )
+    }
+
+    private static func uniquePhotoID(in photos: [[String: Any]], where matches: ([String: Any]) -> Bool) -> String? {
+        let ids = photos.compactMap { photo -> String? in
+            guard matches(photo),
+                  let id = stringValue(for: ["id", "photo_id", "photoID"], in: photo),
+                  isPhotoID(id) else {
+                return nil
+            }
+
+            return id
+        }
+
+        let uniqueIDs = Array(Set(ids))
+        return uniqueIDs.count == 1 ? uniqueIDs[0] : nil
+    }
+
+    private static func stringValue(for keys: [String], in dictionary: [String: Any]) -> String? {
+        for key in keys {
+            if let string = dictionary[key] as? String {
+                let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty == false {
+                    return trimmed
+                }
+            }
+            if let number = dictionary[key] as? NSNumber {
+                return number.stringValue
+            }
+        }
+        return nil
+    }
+
+    private static func isPhotoID(_ value: String) -> Bool {
+        value.count == 24 && value.range(of: #"^[A-Za-z0-9+/_=-]{24}$"#, options: .regularExpression) != nil
     }
 }

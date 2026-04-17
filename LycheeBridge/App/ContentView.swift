@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ContentView: View {
     @ObservedObject var viewModel: AppViewModel
+    @Environment(\.openWindow) private var openWindow
     @State private var isConfirmingClearPendingImport = false
 
     var body: some View {
@@ -11,8 +12,9 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     connectionSection
                     pendingImportSection
+                    metadataEditingSection
                     destinationSection
-                    uploadProgressSection
+                    uploadSection
                 }
                 .padding(24)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -79,7 +81,6 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
 
                 if let items = viewModel.pendingBundle?.items, items.isEmpty == false {
-                    PendingPhotoGrid(items: items)
                     pendingFileList(items: items)
                 }
 
@@ -147,29 +148,61 @@ struct ContentView: View {
         }
     }
 
-    private var uploadProgressSection: some View {
-        GroupBox("Upload Progress") {
+    private var metadataEditingSection: some View {
+        GroupBox("Photo Metadata") {
+            VStack(alignment: .leading, spacing: 14) {
+                if let items = viewModel.pendingBundle?.items, items.isEmpty == false {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Common Tags")
+                            .font(.headline)
+                        EditableTagField(
+                            tags: $viewModel.commonTags,
+                            input: $viewModel.commonTagInput,
+                            availableTags: viewModel.tags,
+                            onAddTag: viewModel.addLocalTagSuggestion
+                        )
+                    }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(items) { item in
+                            PhotoMetadataEditor(
+                                item: item,
+                                metadata: metadataBinding(for: item),
+                                availableTags: viewModel.tags,
+                                onAddTag: viewModel.addLocalTagSuggestion
+                            )
+
+                            if item.id != items.last?.id {
+                                Divider()
+                                    .padding(.vertical, 14)
+                            }
+                        }
+                    }
+                } else {
+                    ContentUnavailableView(
+                        "No Pending Metadata",
+                        systemImage: "tag",
+                        description: Text("Share photos to edit titles and tags before upload.")
+                    )
+                    .frame(maxWidth: .infinity, alignment: .center)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var uploadSection: some View {
+        GroupBox("Upload") {
             VStack(alignment: .leading, spacing: 12) {
                 Button("Upload to Album") {
+                    openWindow(id: "uploadProgress")
                     Task { await viewModel.uploadPendingPhotos() }
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .disabled(viewModel.canUpload == false)
-
-                if viewModel.uploader.isUploading || viewModel.uploader.results.isEmpty == false {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(viewModel.uploader.results) { result in
-                            UploadResultRow(result: result)
-                        }
-
-                        if viewModel.uploader.completedSummary.isEmpty == false {
-                            Text(viewModel.uploader.completedSummary)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
 
                 StatusLine(message: viewModel.uploadMessage, state: viewModel.uploadState)
             }
@@ -193,6 +226,14 @@ struct ContentView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+        }
+    }
+
+    private func metadataBinding(for item: ImportedPhoto) -> Binding<ImportedPhotoEditableMetadata> {
+        Binding {
+            viewModel.editableMetadata[item.id] ?? ImportedPhotoEditableMetadata()
+        } set: { metadata in
+            viewModel.editableMetadata[item.id] = metadata
         }
     }
 
@@ -229,23 +270,218 @@ private struct StatusLine: View {
     }
 }
 
-private struct PendingPhotoGrid: View {
-    let items: [ImportedPhoto]
+struct TagList: View {
+    let tags: [LycheeTag]
 
     private let columns = [
-        GridItem(.adaptive(minimum: 112, maximum: 140), spacing: 10)
+        GridItem(.adaptive(minimum: 96), spacing: 8)
     ]
 
     var body: some View {
-        LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
-            ForEach(items) { item in
-                PendingPhotoThumbnail(item: item)
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+            ForEach(tags) { tag in
+                Text(tag.name)
+                    .font(.caption)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+                    .textSelection(.enabled)
             }
         }
     }
 }
 
-private struct UploadResultRow: View {
+private struct PhotoMetadataEditor: View {
+    let item: ImportedPhoto
+    @Binding var metadata: ImportedPhotoEditableMetadata
+    let availableTags: [LycheeTag]
+    let onAddTag: (String) -> Void
+    @State private var tagInput = ""
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 16) {
+                PhotoThumbnailImage(item: item, size: 128)
+
+                editorFields
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top, spacing: 12) {
+                    PhotoThumbnailImage(item: item, size: 92)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        photoTitle
+                        fileDetails
+                        metadataBadge
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                editorControls
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var editorFields: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    photoTitle
+                    fileDetails
+                }
+
+                Spacer()
+
+                metadataBadge
+            }
+
+            editorControls
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var editorControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TextField("Title", text: $metadata.manualTitle)
+                .textFieldStyle(.roundedBorder)
+
+            EditableTagField(
+                tags: $metadata.manualTags,
+                input: $tagInput,
+                availableTags: availableTags,
+                onAddTag: onAddTag
+            )
+        }
+    }
+
+    private var photoTitle: some View {
+        Text(item.displayName)
+            .font(.headline)
+            .lineLimit(1)
+            .truncationMode(.middle)
+    }
+
+    private var fileDetails: some View {
+        Text(ByteCountFormatter.string(fromByteCount: item.fileSize, countStyle: .file))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+    }
+
+    @ViewBuilder
+    private var metadataBadge: some View {
+        if item.metadata?.hasTransferableMetadata == true {
+            Text("Prefilled from embedded metadata")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct EditableTagField: View {
+    @Binding var tags: [String]
+    @Binding var input: String
+    let availableTags: [LycheeTag]
+    let onAddTag: (String) -> Void
+
+    private let columns = [
+        GridItem(.adaptive(minimum: 96), spacing: 8)
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                TextField("Add tag", text: $input)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(addInputTag)
+
+                Button("Add") {
+                    addInputTag()
+                }
+                .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+
+            if suggestionTags.isEmpty == false {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(suggestionTags) { tag in
+                            Button(tag.name) {
+                                addSuggestedTag(tag.name)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    }
+                }
+            }
+
+            if tags.isEmpty == false {
+                LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+                    ForEach(tags, id: \.self) { tag in
+                        HStack(spacing: 6) {
+                            Text(tag)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+
+                            Button {
+                                removeTag(tag)
+                            } label: {
+                                Image(systemName: "xmark")
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                        }
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+                    }
+                }
+            }
+        }
+    }
+
+    private var suggestionTags: [LycheeTag] {
+        let query = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard query.isEmpty == false else { return [] }
+        let selected = Set(tags.map { $0.lowercased() })
+
+        return availableTags
+            .filter { tag in
+                tag.name.range(of: query, options: [.caseInsensitive, .anchored]) != nil
+                    && selected.contains(tag.name.lowercased()) == false
+            }
+            .prefix(8)
+            .map { $0 }
+    }
+
+    private func addInputTag() {
+        addTag(input)
+        input = ""
+    }
+
+    private func addSuggestedTag(_ tag: String) {
+        addTag(tag)
+        input = ""
+    }
+
+    private func addTag(_ tag: String) {
+        let normalized = ImportedPhotoEditableMetadata.normalizedTags(tags + [tag])
+        tags = normalized
+        if let addedTag = normalized.first(where: { $0.caseInsensitiveCompare(tag.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame }) {
+            onAddTag(addedTag)
+        }
+    }
+
+    private func removeTag(_ tag: String) {
+        tags.removeAll { $0.caseInsensitiveCompare(tag) == .orderedSame }
+    }
+}
+
+struct UploadResultRow: View {
     let result: UploadResult
 
     var body: some View {
@@ -262,6 +498,8 @@ private struct UploadResultRow: View {
                     .font(.caption)
                     .foregroundStyle(statusColor)
                     .textSelection(.enabled)
+
+                metadataStatusLines
             }
 
             Spacer()
@@ -311,37 +549,75 @@ private struct UploadResultRow: View {
             return .red
         }
     }
+
+    @ViewBuilder
+    private var metadataStatusLines: some View {
+        if result.titleStatus != .notRequested {
+            Text("Title: \(metadataStatusText(result.titleStatus))")
+                .font(.caption)
+                .foregroundStyle(metadataStatusColor(result.titleStatus))
+                .textSelection(.enabled)
+        }
+
+        if result.tagStatus != .notRequested {
+            Text("Tags: \(metadataStatusText(result.tagStatus))")
+                .font(.caption)
+                .foregroundStyle(metadataStatusColor(result.tagStatus))
+                .textSelection(.enabled)
+        }
+    }
+
+    private func metadataStatusText(_ status: MetadataOperationStatus) -> String {
+        switch status {
+        case .notRequested:
+            return "Not requested"
+        case .pending:
+            return "Waiting"
+        case .applying:
+            return "Applying"
+        case .applied:
+            return "Applied"
+        case let .skipped(message):
+            return "Skipped: \(message)"
+        case let .failed(message):
+            return "Metadata failed: \(message)"
+        }
+    }
+
+    private func metadataStatusColor(_ status: MetadataOperationStatus) -> Color {
+        switch status {
+        case .failed:
+            return .red
+        case .applied:
+            return .green
+        case .notRequested, .pending, .applying, .skipped:
+            return .secondary
+        }
+    }
 }
 
-private struct PendingPhotoThumbnail: View {
+private struct PhotoThumbnailImage: View {
     let item: ImportedPhoto
+    let size: CGFloat
     @State private var image: NSImage?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(.quaternary)
+        ZStack {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(.quaternary)
 
-                if let image {
-                    Image(nsImage: image)
-                        .resizable()
-                        .scaledToFill()
-                } else {
-                    Image(systemName: "photo")
-                        .font(.title2)
-                        .foregroundStyle(.secondary)
-                }
+            if let image {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Image(systemName: "photo")
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
             }
-            .frame(width: 112, height: 112)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-
-            Text(item.displayName)
-                .font(.caption)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(width: 112, alignment: .leading)
         }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
         .task(id: item.fileURL) {
             image = NSImage(contentsOf: item.fileURL)
         }

@@ -8,14 +8,20 @@ final class AppViewModel: ObservableObject {
     @Published var configuration: LycheeConfiguration
     @Published var credentials: LycheeCredentials
     @Published var albums: [LycheeAlbum] = []
+    @Published var tags: [LycheeTag] = []
     @Published var selectedAlbumID: String = ""
     @Published var pendingBundle: ShareImportBundle?
+    @Published var editableMetadata: [UUID: ImportedPhotoEditableMetadata] = [:]
+    @Published var commonTags: [String] = []
+    @Published var commonTagInput: String = ""
     @Published var connectionMessage: String = "Configure your Lychee server to begin."
     @Published var importMessage: String = "No pending photos."
     @Published var destinationMessage: String = "Load albums to choose a destination."
+    @Published var tagMessage: String = "Load tags to inspect Lychee tag suggestions."
     @Published var uploadMessage: String = "Waiting for photos and a destination album."
     @Published var connectionState: AsyncButtonState = .idle
     @Published var albumState: AsyncButtonState = .idle
+    @Published var tagState: AsyncButtonState = .idle
     @Published var uploadState: AsyncButtonState = .idle
     @Published var debugLog: String = "No debug trace yet."
 
@@ -61,6 +67,7 @@ final class AppViewModel: ObservableObject {
         await refreshPendingBundle()
         if configuration.serverURLString.isEmpty == false, configuration.username.isEmpty == false {
             await refreshAlbums()
+            await refreshTags()
         }
     }
 
@@ -72,7 +79,7 @@ final class AppViewModel: ObservableObject {
                   let uuid = UUID(uuidString: bundleID) {
             do {
                 let bundle = try importStore.bundle(withID: uuid)
-                pendingBundle = bundle
+                setPendingBundle(bundle)
                 importMessage = "Loaded \(bundle.photoCountDescription) from \(bundle.sourceApplication ?? "Share Extension")."
             } catch {
                 importMessage = error.localizedDescription
@@ -141,9 +148,36 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    func refreshTags() async {
+        tagState = .running
+        tagMessage = "Loading tags…"
+
+        do {
+            let client = makeClient()
+            let tags = try await client.fetchTags()
+            self.tags = tags
+            tagMessage = tags.isEmpty ? "Connected, but no tags are defined yet." : "Loaded \(tags.count) tags."
+            tagState = .succeeded
+        } catch {
+            tagMessage = error.localizedDescription
+            tagState = .failed
+        }
+    }
+
+    func addLocalTagSuggestion(_ name: String) {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedName.isEmpty == false,
+              tags.contains(where: { $0.name.caseInsensitiveCompare(trimmedName) == .orderedSame }) == false else {
+            return
+        }
+
+        tags.append(LycheeTag(id: trimmedName, name: trimmedName))
+        tags.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
     func refreshPendingBundle() async {
         do {
-            pendingBundle = try importStore.latestBundle()
+            setPendingBundle(try importStore.latestBundle())
             if let pendingBundle {
                 importMessage = "Ready to upload \(pendingBundle.photoCountDescription)."
             } else {
@@ -172,7 +206,7 @@ final class AppViewModel: ObservableObject {
 
         do {
             try importStore.clear(bundleID: pendingBundle.id)
-            self.pendingBundle = nil
+            setPendingBundle(nil)
             uploader.reset()
             importMessage = "Cleared pending import."
             uploadMessage = "Waiting for photos and a destination album."
@@ -198,20 +232,36 @@ final class AppViewModel: ObservableObject {
         uploader.reset()
 
         let client = makeClient()
-        await uploader.upload(bundle: pendingBundle, albumID: selectedAlbumID, client: client)
+        await uploader.upload(
+            bundle: pendingBundle,
+            albumID: selectedAlbumID,
+            client: client,
+            editableMetadata: editableMetadata,
+            commonTags: commonTags
+        )
 
-        if uploader.results.contains(where: {
+        let hasUploadFailures = uploader.results.contains {
             if case .failed = $0.status { return true }
             return false
-        }) {
+        }
+        let hasMetadataFailures = uploader.results.contains {
+            if case .failed = $0.titleStatus { return true }
+            if case .failed = $0.tagStatus { return true }
+            return false
+        }
+
+        if hasUploadFailures {
             uploadMessage = uploader.completedSummary
+            uploadState = .failed
+        } else if hasMetadataFailures {
+            uploadMessage = "\(uploader.completedSummary) Some metadata updates failed."
             uploadState = .failed
         } else {
             uploadMessage = uploader.completedSummary
             uploadState = .succeeded
             do {
                 try importStore.clear(bundleID: pendingBundle.id)
-                self.pendingBundle = nil
+                setPendingBundle(nil)
                 importMessage = "No pending photos."
                 scheduleAutomaticTerminationIfNeeded()
             } catch {
@@ -226,6 +276,29 @@ final class AppViewModel: ObservableObject {
                 self?.appendDebugTrace(trace)
             }
         }
+    }
+
+    private func setPendingBundle(_ bundle: ShareImportBundle?) {
+        pendingBundle = bundle
+
+        guard let bundle else {
+            editableMetadata = [:]
+            commonTags = []
+            commonTagInput = ""
+            return
+        }
+
+        let validIDs = Set(bundle.items.map(\.id))
+        var nextMetadata = editableMetadata.filter { validIDs.contains($0.key) }
+
+        for item in bundle.items where nextMetadata[item.id] == nil {
+            nextMetadata[item.id] = ImportedPhotoEditableMetadata(
+                manualTitle: item.metadata?.title ?? "",
+                manualTags: item.metadata?.tags ?? []
+            )
+        }
+
+        editableMetadata = nextMetadata
     }
 
     func persistSelectedAlbumID() {
@@ -249,7 +322,7 @@ final class AppViewModel: ObservableObject {
 
         uploadMessage = "\(uploader.completedSummary) Closing LycheeBridge…"
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.2) {
             NSApplication.shared.terminate(nil)
         }
     }

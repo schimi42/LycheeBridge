@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import UniformTypeIdentifiers
 
@@ -53,6 +54,21 @@ struct LycheeClient {
         return try AlbumResponseParser.parseAlbums(from: payload)
     }
 
+    func fetchTags() async throws -> [LycheeTag] {
+        let payload = try await performAuthenticatedRequest {
+            try await performFirstSuccessfulRequest(
+                candidatePaths: [
+                    "api/v2/Tags",
+                    "api/Tags"
+                ],
+                builder: { path in
+                    try makeGETRequest(path: path)
+                }
+            )
+        }
+        return try TagResponseParser.parseTags(from: payload)
+    }
+
     func upload(photo: ImportedPhoto, to albumID: String) async throws -> String? {
         let payload = try await performAuthenticatedRequest {
             try await performFirstSuccessfulRequest(
@@ -65,7 +81,55 @@ struct LycheeClient {
                 }
             )
         }
-        return UploadResponseParser.parseRemoteID(from: payload)
+
+        if let remoteID = UploadResponseParser.parseRemoteID(from: payload),
+           remoteID.count == 24 {
+            return remoteID
+        }
+
+        let uploadedFilename = UploadResponseParser.parseUploadedFilename(from: payload)
+        let originalChecksum = try sha1Checksum(for: photo.fileURL)
+        return try await resolveUploadedPhotoID(
+            albumID: albumID,
+            originalFilename: photo.originalFilename,
+            uploadedFilename: uploadedFilename,
+            originalChecksum: originalChecksum
+        )
+    }
+
+    func renamePhoto(photoID: String, title: String) async throws {
+        _ = try await performAuthenticatedRequest {
+            try await performFirstSuccessfulRequest(
+                candidatePaths: [
+                    "api/v2/Photo::rename",
+                    "api/Photo::rename"
+                ],
+                builder: { path in
+                    try makeJSONRequest(path: path, method: "PATCH", payload: [
+                        "photo_id": photoID,
+                        "title": title
+                    ])
+                }
+            )
+        }
+    }
+
+    func applyTags(photoID: String, tags: [String], shallOverride: Bool = false) async throws {
+        _ = try await performAuthenticatedRequest {
+            try await performFirstSuccessfulRequest(
+                candidatePaths: [
+                    "api/v2/Photo::tags",
+                    "api/Photo::tags"
+                ],
+                builder: { path in
+                    try makeJSONRequest(path: path, method: "PATCH", payload: [
+                        "shall_override": shallOverride,
+                        "photo_ids": [photoID],
+                        "tags": tags
+                    ])
+                }
+            )
+        }
     }
 
     private func loginIfNeeded() async throws {
@@ -138,6 +202,42 @@ struct LycheeClient {
         }
     }
 
+    private func resolveUploadedPhotoID(
+        albumID: String,
+        originalFilename: String,
+        uploadedFilename: String?,
+        originalChecksum: String
+    ) async throws -> String? {
+        let payload = try await performAuthenticatedRequest {
+            try await performFirstSuccessfulRequest(
+                candidatePaths: [
+                    "api/v2/Album::photos",
+                    "api/Album::photos"
+                ],
+                builder: { path in
+                    try makeGETRequest(path: path, queryItems: [
+                        URLQueryItem(name: "album_id", value: albumID),
+                        URLQueryItem(name: "page", value: "1"),
+                        URLQueryItem(name: "_", value: String(Int(Date().timeIntervalSince1970 * 1000)))
+                    ])
+                }
+            )
+        }
+
+        return UploadResponseParser.parsePhotoID(
+            from: payload,
+            matching: uploadedFilename,
+            originalFilename: originalFilename,
+            originalChecksum: originalChecksum
+        )
+    }
+
+    private func sha1Checksum(for url: URL) throws -> String {
+        let data = try Data(contentsOf: url)
+        let digest = Insecure.SHA1.hash(data: data)
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
     private func makeFormRequest(path: String, form: [String: String]) throws -> URLRequest {
         guard let baseURL = normalizedBaseURL else {
             throw LycheeClientError.invalidServerURL
@@ -158,26 +258,43 @@ struct LycheeClient {
     }
 
     private func makeJSONRequest(path: String, payload: [String: String]) throws -> URLRequest {
+        try makeJSONRequest(path: path, method: "POST", payload: payload)
+    }
+
+    private func makeJSONRequest(path: String, method: String, payload: [String: Any]) throws -> URLRequest {
         guard let baseURL = normalizedBaseURL else {
             throw LycheeClientError.invalidServerURL
         }
 
         let url = baseURL.appendingPathComponent(path)
         var request = URLRequest(url: url)
-        request.httpMethod = "POST"
+        request.httpMethod = method
         applyDefaultHeaders(to: &request, contentType: "application/json")
         request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
         return request
     }
 
     private func makeGETRequest(path: String) throws -> URLRequest {
+        try makeGETRequest(path: path, queryItems: [])
+    }
+
+    private func makeGETRequest(path: String, queryItems: [URLQueryItem]) throws -> URLRequest {
         guard let baseURL = normalizedBaseURL else {
             throw LycheeClientError.invalidServerURL
         }
 
-        let url = baseURL.appendingPathComponent(path)
+        var url = baseURL.appendingPathComponent(path)
+        if queryItems.isEmpty == false {
+            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            components?.queryItems = queryItems
+            if let componentURL = components?.url {
+                url = componentURL
+            }
+        }
+
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         applyDefaultHeaders(to: &request, contentType: "application/json")
         return request
     }

@@ -29,6 +29,37 @@ struct ImportedPhotoMetadataField: Codable, Hashable, Identifiable {
     let value: String
 }
 
+struct ImportedPhotoEditableMetadata: Codable, Hashable {
+    var manualTitle: String = ""
+    var manualTags: [String] = []
+
+    var normalizedTitle: String? {
+        let trimmed = manualTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    var normalizedTags: [String] {
+        Self.normalizedTags(manualTags)
+    }
+
+    static func normalizedTags(_ tags: [String]) -> [String] {
+        var seen: Set<String> = []
+        var result: [String] = []
+
+        for tag in tags {
+            let trimmed = tag.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.isEmpty == false else { continue }
+
+            let key = trimmed.lowercased()
+            if seen.insert(key).inserted {
+                result.append(trimmed)
+            }
+        }
+
+        return result
+    }
+}
+
 struct ShareImportBundle: Codable, Identifiable, Hashable {
     let id: UUID
     let createdAt: Date
@@ -83,6 +114,11 @@ struct LycheeAlbum: Codable, Identifiable, Hashable {
     }
 }
 
+struct LycheeTag: Codable, Identifiable, Hashable {
+    let id: String
+    let name: String
+}
+
 struct UploadResult: Identifiable, Hashable {
     enum Status: Hashable {
         case pending
@@ -97,5 +133,16 @@ struct UploadResult: Identifiable, Hashable {
     let startedAt: Date
     var completedAt: Date?
     var status: Status
+    var titleStatus: MetadataOperationStatus
+    var tagStatus: MetadataOperationStatus
     var serverResponseSummary: String?
+}
+
+enum MetadataOperationStatus: Hashable {
+    case notRequested
+    case pending
+    case applying
+    case applied
+    case skipped(message: String)
+    case failed(message: String)
 }

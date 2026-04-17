@@ -255,3 +255,7 @@ These values must remain consistent across app, extension, entitlements, and rel
 - URL scheme: `lycheebridge`
 
 Changing them after release can break existing Share Extension registration, stored settings, keychain entries, or App Group data.
+
+## License
+
+LycheeBridge is licensed under the Mozilla Public License 2.0. Keep the root `LICENSE` file in source and binary distributions, and make source changes to MPL-covered files available when distributing modified versions.

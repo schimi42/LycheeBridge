@@ -133,4 +133,4 @@ Before the first public release:
 
 ## License
 
-Add the project license before publishing the repository publicly.
+LycheeBridge is licensed under the Mozilla Public License 2.0. See `LICENSE` for details.

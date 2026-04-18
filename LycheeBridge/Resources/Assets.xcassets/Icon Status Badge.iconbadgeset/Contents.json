@@ -1,0 +1,68 @@
+{
+  "images" : [
+    {
+      "filename" : "Lumirio Logo 7.png",
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "7x7"
+    },
+    {
+      "filename" : "Lumirio Logo 14.png",
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "7x7"
+    },
+    {
+      "filename" : "Lumirio Logo 11.png",
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "11x11"
+    },
+    {
+      "filename" : "Lumirio Logo 22.png",
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "11x11"
+    },
+    {
+      "filename" : "Lumirio Logo 24.png",
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "24x24"
+    },
+    {
+      "filename" : "Lumirio Logo 48.png",
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "24x24"
+    },
+    {
+      "filename" : "Lumirio Logo 50.png",
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "50x50"
+    },
+    {
+      "filename" : "Lumirio Logo 100.png",
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "50x50"
+    },
+    {
+      "filename" : "Lumirio Logo 101.png",
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "100x100"
+    },
+    {
+      "filename" : "Lumirio Logo 200.png",
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "100x100"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

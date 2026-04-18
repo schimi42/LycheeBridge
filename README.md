@@ -109,29 +109,9 @@ xcodebuild -scheme LycheeBridge \
   build
 ```
 
-## Release Checklist
+## Release Notes
 
-Before the first public release:
-
-- Verify bundle identifiers and App Group identifiers are final:
-  - `de.lumirio.LycheeBridge`
-  - `de.lumirio.LycheeBridge.ShareExtension`
-  - `group.de.lumirio.LycheeBridge`
-- Verify the custom URL scheme is final: `lycheebridge`.
-- Confirm the app icon appears in Finder, Dock, and the built `.app`.
-- Confirm signing, hardened runtime, notarization, and stapling.
-- Test a clean install on a Mac that has not previously run the app.
-- Test Share Extension registration from Apple Photos after installation.
-- Test upload, title update, tag update, and diagnostics against a Lychee test album.
-- Test with filenames containing spaces, umlauts, and non-ASCII tag names.
-- Test failed login behavior without exhausting Lychee's login rate limit.
-- Confirm pending import cleanup after successful upload.
-- Confirm failed uploads keep pending files for recovery.
-- Review diagnostic output for accidental sensitive data.
-- Update release notes with known limitations.
-- Attach a signed and notarized `.dmg` or `.zip` to the GitHub release.
-
-Release notes live in `Docs/ReleaseNotes.md`.
+See `Docs/ReleaseNotes.md` for release highlights and known limitations.
 
 ## License
 

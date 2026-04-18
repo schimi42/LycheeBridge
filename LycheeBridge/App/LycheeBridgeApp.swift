@@ -2,6 +2,9 @@ import AppKit
 import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApplication.shared.applicationIconImage = NSImage(named: "AppIcon")
+    }
 }
 
 @main

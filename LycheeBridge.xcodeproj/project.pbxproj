@@ -33,6 +33,7 @@
 		A00100000000000000000018 /* LycheeResponseParsers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000014 /* LycheeResponseParsers.swift */; };
 		A00100000000000000000019 /* PhotoMetadataExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000015 /* PhotoMetadataExtractor.swift */; };
 		A0010000000000000000001A /* PhotoMetadataExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000015 /* PhotoMetadataExtractor.swift */; };
+		A0010000000000000000001B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000000B /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -275,6 +276,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A0010000000000000000001B /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -485,6 +487,8 @@
 		A00800000000000000000005 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = LycheeBridge/ShareExtension/LycheeBridgeShare.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
@@ -512,6 +516,8 @@
 		A00800000000000000000006 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = LycheeBridge/ShareExtension/LycheeBridgeShare.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;

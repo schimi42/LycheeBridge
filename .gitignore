@@ -1,0 +1,34 @@
+# macOS Finder metadata
+.DS_Store
+
+# Xcode user-specific state
+*.xcuserstate
+*.xcscmblueprint
+xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+
+# Xcode build output
+DerivedData/
+build/
+Build/
+*.xcarchive
+*.ipa
+*.dSYM
+*.dSYM.zip
+
+# Swift Package Manager local state, if packages are added later
+.build/
+.swiftpm/
+Package.resolved
+
+# Distribution artifacts
+*.app
+*.dmg
+*.pkg
+*.zip
+
+# Local environment files
+.env
+.env.*
+*.xcconfig.local

@@ -128,8 +128,10 @@ Before the first public release:
 - Confirm pending import cleanup after successful upload.
 - Confirm failed uploads keep pending files for recovery.
 - Review diagnostic output for accidental sensitive data.
-- Add release notes with known limitations.
+- Update release notes with known limitations.
 - Attach a signed and notarized `.dmg` or `.zip` to the GitHub release.
+
+Release notes live in `Docs/ReleaseNotes.md`.
 
 ## License
 

@@ -161,6 +161,16 @@ struct ContentView: View {
                             availableTags: viewModel.tags,
                             onAddTag: viewModel.addLocalTagSuggestion
                         )
+
+                        HStack(spacing: 12) {
+                            Button("Suggest All with LLM") {
+                                openWindow(id: "llmDiagnostics")
+                                Task { await viewModel.suggestMetadataForAllPendingPhotos() }
+                            }
+                            .disabled(viewModel.canSuggestMetadata == false)
+
+                            StatusLine(message: viewModel.llmMessage, state: viewModel.llmState)
+                        }
                     }
 
                     Divider()
@@ -171,7 +181,12 @@ struct ContentView: View {
                                 item: item,
                                 metadata: metadataBinding(for: item),
                                 availableTags: viewModel.tags,
-                                onAddTag: viewModel.addLocalTagSuggestion
+                                onAddTag: viewModel.addLocalTagSuggestion,
+                                onSuggestMetadata: {
+                                    openWindow(id: "llmDiagnostics")
+                                    Task { await viewModel.suggestMetadata(for: item) }
+                                },
+                                isSuggesting: viewModel.llmState.isRunning
                             )
 
                             if item.id != items.last?.id {
@@ -298,6 +313,8 @@ private struct PhotoMetadataEditor: View {
     @Binding var metadata: ImportedPhotoEditableMetadata
     let availableTags: [LycheeTag]
     let onAddTag: (String) -> Void
+    let onSuggestMetadata: () -> Void
+    let isSuggesting: Bool
     @State private var tagInput = ""
 
     var body: some View {
@@ -318,6 +335,11 @@ private struct PhotoMetadataEditor: View {
                         metadataBadge
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Button("Suggest with LLM") {
+                        onSuggestMetadata()
+                    }
+                    .disabled(isSuggesting)
                 }
 
                 editorControls
@@ -335,6 +357,11 @@ private struct PhotoMetadataEditor: View {
                 }
 
                 Spacer()
+
+                Button("Suggest with LLM") {
+                    onSuggestMetadata()
+                }
+                .disabled(isSuggesting)
 
                 metadataBadge
             }

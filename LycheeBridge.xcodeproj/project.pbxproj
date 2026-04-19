@@ -34,6 +34,14 @@
 		A00100000000000000000019 /* PhotoMetadataExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000015 /* PhotoMetadataExtractor.swift */; };
 		A0010000000000000000001A /* PhotoMetadataExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000015 /* PhotoMetadataExtractor.swift */; };
 		A0010000000000000000001B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000000B /* Assets.xcassets */; };
+		A0010000000000000000001C /* LLMImagePreparer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000016 /* LLMImagePreparer.swift */; };
+		A0010000000000000000001D /* LLMImagePreparer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000016 /* LLMImagePreparer.swift */; };
+		A0010000000000000000001E /* LLMModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000017 /* LLMModels.swift */; };
+		A0010000000000000000001F /* LLMModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000017 /* LLMModels.swift */; };
+		A00100000000000000000020 /* LLMProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000018 /* LLMProvider.swift */; };
+		A00100000000000000000021 /* LLMProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000018 /* LLMProvider.swift */; };
+		A00100000000000000000022 /* LLMConfigurationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000019 /* LLMConfigurationStore.swift */; };
+		A00100000000000000000023 /* LLMConfigurationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000019 /* LLMConfigurationStore.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -82,6 +90,10 @@
 		A00200000000000000000013 /* LycheeDebugTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LycheeDebugTrace.swift; sourceTree = "<group>"; };
 		A00200000000000000000014 /* LycheeResponseParsers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LycheeResponseParsers.swift; sourceTree = "<group>"; };
 		A00200000000000000000015 /* PhotoMetadataExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoMetadataExtractor.swift; sourceTree = "<group>"; };
+		A00200000000000000000016 /* LLMImagePreparer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMImagePreparer.swift; sourceTree = "<group>"; };
+		A00200000000000000000017 /* LLMModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMModels.swift; sourceTree = "<group>"; };
+		A00200000000000000000018 /* LLMProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMProvider.swift; sourceTree = "<group>"; };
+		A00200000000000000000019 /* LLMConfigurationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMConfigurationStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -164,6 +176,10 @@
 				A00200000000000000000013 /* LycheeDebugTrace.swift */,
 				A00200000000000000000014 /* LycheeResponseParsers.swift */,
 				A00200000000000000000015 /* PhotoMetadataExtractor.swift */,
+				A00200000000000000000016 /* LLMImagePreparer.swift */,
+				A00200000000000000000017 /* LLMModels.swift */,
+				A00200000000000000000018 /* LLMProvider.swift */,
+				A00200000000000000000019 /* LLMConfigurationStore.swift */,
 				A0020000000000000000000A /* UploadCoordinator.swift */,
 			);
 			path = Shared;
@@ -296,12 +312,16 @@
 				A00100000000000000000007 /* KeychainStore.swift in Sources */,
 				A00100000000000000000008 /* LycheeConfigurationStore.swift in Sources */,
 				A00100000000000000000009 /* LycheeAPI.swift in Sources */,
-				A00100000000000000000015 /* LycheeDebugTrace.swift in Sources */,
-				A00100000000000000000016 /* LycheeResponseParsers.swift in Sources */,
-				A00100000000000000000019 /* PhotoMetadataExtractor.swift in Sources */,
-				A0010000000000000000000A /* UploadCoordinator.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
+					A00100000000000000000015 /* LycheeDebugTrace.swift in Sources */,
+						A00100000000000000000016 /* LycheeResponseParsers.swift in Sources */,
+						A00100000000000000000019 /* PhotoMetadataExtractor.swift in Sources */,
+						A0010000000000000000001C /* LLMImagePreparer.swift in Sources */,
+						A0010000000000000000001E /* LLMModels.swift in Sources */,
+						A00100000000000000000020 /* LLMProvider.swift in Sources */,
+						A00100000000000000000022 /* LLMConfigurationStore.swift in Sources */,
+						A0010000000000000000000A /* UploadCoordinator.swift in Sources */,
+				);
+				runOnlyForDeploymentPostprocessing = 0;
 		};
 		A00310000000000000000002 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -314,12 +334,16 @@
 				A00100000000000000000010 /* KeychainStore.swift in Sources */,
 				A00100000000000000000011 /* LycheeConfigurationStore.swift in Sources */,
 				A00100000000000000000012 /* LycheeAPI.swift in Sources */,
-				A00100000000000000000017 /* LycheeDebugTrace.swift in Sources */,
-				A00100000000000000000018 /* LycheeResponseParsers.swift in Sources */,
-				A0010000000000000000001A /* PhotoMetadataExtractor.swift in Sources */,
-				A00100000000000000000013 /* UploadCoordinator.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
+					A00100000000000000000017 /* LycheeDebugTrace.swift in Sources */,
+						A00100000000000000000018 /* LycheeResponseParsers.swift in Sources */,
+						A0010000000000000000001A /* PhotoMetadataExtractor.swift in Sources */,
+						A0010000000000000000001D /* LLMImagePreparer.swift in Sources */,
+						A0010000000000000000001F /* LLMModels.swift in Sources */,
+						A00100000000000000000021 /* LLMProvider.swift in Sources */,
+						A00100000000000000000023 /* LLMConfigurationStore.swift in Sources */,
+						A00100000000000000000013 /* UploadCoordinator.swift in Sources */,
+				);
+				runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 

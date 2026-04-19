@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 @MainActor
 final class AppViewModel: ObservableObject {
     @Published var configuration: LycheeConfiguration
+    @Published var llmConfiguration: LLMConfiguration
     @Published var credentials: LycheeCredentials
     @Published var albums: [LycheeAlbum] = []
     @Published var tags: [LycheeTag] = []
@@ -19,18 +20,32 @@ final class AppViewModel: ObservableObject {
     @Published var destinationMessage: String = "Load albums to choose a destination."
     @Published var tagMessage: String = "Load tags to inspect Lychee tag suggestions."
     @Published var uploadMessage: String = "Waiting for photos and a destination album."
+    @Published var llmMessage: String = "Configure Ollama, then request suggestions for pending photos."
     @Published var connectionState: AsyncButtonState = .idle
     @Published var albumState: AsyncButtonState = .idle
     @Published var tagState: AsyncButtonState = .idle
     @Published var uploadState: AsyncButtonState = .idle
+    @Published var llmState: AsyncButtonState = .idle
     @Published var debugLog: String = "No debug trace yet."
+    @Published var llmDiagnostic: LLMDiagnosticSnapshot?
 
     let uploader = UploadCoordinator()
 
     private let configurationStore = LycheeConfigurationStore()
+    private let llmConfigurationStore = LLMConfigurationStore()
     private let importStore = SharedImportStore()
+    private let llmProviderFactory = LLMProviderFactory()
 
     init() {
+        let loadedLLMConfiguration: LLMConfiguration
+        do {
+            loadedLLMConfiguration = try llmConfigurationStore.load()
+        } catch {
+            loadedLLMConfiguration = LLMConfiguration()
+            self.llmMessage = error.localizedDescription
+        }
+        self.llmConfiguration = loadedLLMConfiguration
+
         do {
             let loaded = try configurationStore.load()
             self.configuration = loaded.0
@@ -49,6 +64,10 @@ final class AppViewModel: ObservableObject {
 
     var canManagePendingImport: Bool {
         pendingBundle != nil && uploadState.isRunning == false
+    }
+
+    var canSuggestMetadata: Bool {
+        pendingBundle != nil && llmState.isRunning == false
     }
 
     var configuredServerLabel: String {
@@ -97,6 +116,35 @@ final class AppViewModel: ObservableObject {
         } catch {
             connectionMessage = error.localizedDescription
         }
+    }
+
+    func saveLLMConfiguration() {
+        do {
+            try llmConfigurationStore.save(llmConfiguration)
+            llmMessage = "Saved LLM settings."
+            llmState = .succeeded
+        } catch {
+            llmMessage = error.localizedDescription
+            llmState = .failed
+        }
+    }
+
+    func resetLLMPrompt() {
+        llmConfiguration.prompt = LLMConfiguration.defaultPrompt
+        saveLLMConfiguration()
+    }
+
+    func resetLLMPreferredTags() {
+        llmConfiguration.preferredTags = LLMConfiguration.defaultPreferredTags
+        saveLLMConfiguration()
+    }
+
+    func addLycheeTagsToLLMPreferredTags() {
+        let lycheeTagNames = tags.map(\.name)
+        llmConfiguration.preferredTags = ImportedPhotoEditableMetadata.normalizedTags(
+            llmConfiguration.preferredTags + lycheeTagNames
+        )
+        saveLLMConfiguration()
     }
 
     func testConnection() async {
@@ -173,6 +221,54 @@ final class AppViewModel: ObservableObject {
 
         tags.append(LycheeTag(id: trimmedName, name: trimmedName))
         tags.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    func suggestMetadata(for item: ImportedPhoto) async {
+        guard llmState.isRunning == false else { return }
+
+        llmState = .running
+        llmMessage = "Requesting LLM suggestions for \(item.displayName)..."
+
+        do {
+            try await suggestMetadataForItem(item)
+            llmMessage = "Applied LLM suggestions for \(item.displayName)."
+            llmState = .succeeded
+        } catch {
+            llmMessage = error.localizedDescription
+            llmState = .failed
+        }
+    }
+
+    func suggestMetadataForAllPendingPhotos() async {
+        guard llmState.isRunning == false else { return }
+        guard let items = pendingBundle?.items, items.isEmpty == false else {
+            llmMessage = "No pending photos to suggest metadata for."
+            return
+        }
+
+        llmState = .running
+        llmMessage = "Requesting LLM suggestions for \(items.count) photos..."
+
+        var successCount = 0
+        var lastError: Error?
+
+        for item in items {
+            do {
+                try await suggestMetadataForItem(item)
+                successCount += 1
+            } catch {
+                lastError = error
+                break
+            }
+        }
+
+        if let lastError {
+            llmMessage = "Suggested metadata for \(successCount) of \(items.count) photos. \(lastError.localizedDescription)"
+            llmState = .failed
+        } else {
+            llmMessage = "Applied LLM suggestions for \(successCount) photos."
+            llmState = .succeeded
+        }
     }
 
     func refreshPendingBundle() async {
@@ -276,6 +372,63 @@ final class AppViewModel: ObservableObject {
                 self?.appendDebugTrace(trace)
             }
         }
+    }
+
+    private func suggestMetadataForItem(_ item: ImportedPhoto) async throws {
+        let image = try LLMImagePreparer.prepare(photo: item, options: llmConfiguration.imageOptions)
+        let request = LLMMetadataRequest(photo: item, image: image, configuration: llmConfiguration)
+        let provider = try llmProviderFactory.makeProvider(configuration: llmConfiguration)
+        llmDiagnostic = LLMDiagnosticSnapshot(
+            id: UUID(),
+            createdAt: Date(),
+            photoName: item.displayName,
+            preparedImage: image,
+            prompt: request.prompt,
+            response: "Waiting for LLM response...",
+            suggestion: nil
+        )
+
+        do {
+            let result = try await provider.suggestMetadataWithDiagnostics(for: request)
+            applySuggestion(result.suggestion, to: item)
+            llmDiagnostic = LLMDiagnosticSnapshot(
+                id: UUID(),
+                createdAt: Date(),
+                photoName: item.displayName,
+                preparedImage: image,
+                prompt: request.prompt,
+                response: result.rawResponse,
+                suggestion: result.suggestion
+            )
+        } catch {
+            llmDiagnostic = LLMDiagnosticSnapshot(
+                id: UUID(),
+                createdAt: Date(),
+                photoName: item.displayName,
+                preparedImage: image,
+                prompt: request.prompt,
+                response: error.localizedDescription,
+                suggestion: nil
+            )
+            throw error
+        }
+    }
+
+    private func applySuggestion(_ suggestion: LLMMetadataSuggestion, to item: ImportedPhoto) {
+        var metadata = editableMetadata[item.id] ?? ImportedPhotoEditableMetadata()
+
+        if llmConfiguration.shouldSuggestTitle,
+           let title = suggestion.normalizedTitle {
+            metadata.manualTitle = title
+        }
+
+        if llmConfiguration.shouldSuggestTags {
+            let suggestedTags = suggestion.normalizedTags
+            metadata.manualTags = ImportedPhotoEditableMetadata.normalizedTags(metadata.manualTags + suggestedTags)
+            suggestedTags.forEach(addLocalTagSuggestion)
+        }
+
+        editableMetadata[item.id] = metadata
     }
 
     private func setPendingBundle(_ bundle: ShareImportBundle?) {

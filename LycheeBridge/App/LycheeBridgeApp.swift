@@ -38,9 +38,20 @@ struct LycheeBridgeApp: App {
         }
         .defaultSize(width: 720, height: 520)
 
+        WindowGroup("LLM Settings", id: "llmSettings") {
+            LLMSettingsView(viewModel: viewModel)
+        }
+        .defaultSize(width: 720, height: 680)
+
+        WindowGroup("LLM Diagnostics", id: "llmDiagnostics") {
+            LLMDiagnosticsView(viewModel: viewModel)
+        }
+        .defaultSize(width: 900, height: 680)
+
         .commands {
             DiagnosticsCommands()
             LycheeCommands()
+            LLMCommands()
         }
     }
 }
@@ -54,6 +65,24 @@ struct LycheeCommands: Commands {
                 openWindow(id: "lycheeTags")
             }
             .keyboardShortcut("t", modifiers: [.command, .shift])
+        }
+    }
+}
+
+struct LLMCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandMenu("LLM") {
+            Button("Show LLM Settings") {
+                openWindow(id: "llmSettings")
+            }
+            .keyboardShortcut(",", modifiers: [.command, .shift])
+
+            Button("Show LLM Diagnostics") {
+                openWindow(id: "llmDiagnostics")
+            }
+            .keyboardShortcut("l", modifiers: [.command, .shift])
         }
     }
 }
@@ -72,6 +101,236 @@ struct DiagnosticsCommands: Commands {
                 openWindow(id: "metadataDiagnostics")
             }
             .keyboardShortcut("m", modifiers: [.command, .shift])
+        }
+    }
+}
+
+struct LLMSettingsView: View {
+    @ObservedObject var viewModel: AppViewModel
+    @State private var preferredTagsText = ""
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("LLM Settings")
+                    .font(.title2.bold())
+
+                Text("Configure the vision model used to suggest titles and tags before uploading.")
+                    .foregroundStyle(.secondary)
+
+                GroupBox("Provider") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Picker("Provider", selection: $viewModel.llmConfiguration.providerKind) {
+                            ForEach(LLMProviderKind.allCases) { providerKind in
+                                Text(providerKind.title).tag(providerKind)
+                            }
+                        }
+                        .pickerStyle(.menu)
+
+                        if viewModel.llmConfiguration.providerKind != .ollama {
+                            Text("Only Ollama is implemented in this build.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        TextField("Ollama server URL", text: $viewModel.llmConfiguration.endpointURLString)
+                            .textFieldStyle(.roundedBorder)
+
+                        TextField("Model", text: $viewModel.llmConfiguration.modelName)
+                            .textFieldStyle(.roundedBorder)
+
+                        Toggle("Suggest titles", isOn: $viewModel.llmConfiguration.shouldSuggestTitle)
+                            .toggleStyle(.switch)
+
+                        Toggle("Suggest tags", isOn: $viewModel.llmConfiguration.shouldSuggestTags)
+                            .toggleStyle(.switch)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                GroupBox("Image Sent to LLM") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Stepper(
+                            "Maximum dimension: \(viewModel.llmConfiguration.imageOptions.maxPixelDimension) px",
+                            value: $viewModel.llmConfiguration.imageOptions.maxPixelDimension,
+                            in: 256...2048,
+                            step: 128
+                        )
+
+                        HStack {
+                            Text("JPEG quality")
+                            Slider(value: $viewModel.llmConfiguration.imageOptions.jpegQuality, in: 0.35...0.95)
+                            Text(viewModel.llmConfiguration.imageOptions.jpegQuality.formatted(.number.precision(.fractionLength(2))))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 44, alignment: .trailing)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                GroupBox("Prompt") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        TextEditor(text: $viewModel.llmConfiguration.prompt)
+                            .font(.system(.body, design: .monospaced))
+                            .frame(minHeight: 150)
+                            .border(.quaternary)
+
+                        Button("Reset Prompt") {
+                            viewModel.resetLLMPrompt()
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                GroupBox("Preferred Tags") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("One tag per line. These are sent to the LLM as preferred suggestions.")
+                            .foregroundStyle(.secondary)
+
+                        TextEditor(text: $preferredTagsText)
+                            .font(.system(.body, design: .monospaced))
+                            .frame(minHeight: 150)
+                            .border(.quaternary)
+
+                        HStack(spacing: 12) {
+                            Button("Add Loaded Lychee Tags") {
+                                commitPreferredTagsText()
+                                viewModel.addLycheeTagsToLLMPreferredTags()
+                                syncPreferredTagsText()
+                            }
+                            .disabled(viewModel.tags.isEmpty)
+
+                            Button("Reset Default Tags") {
+                                viewModel.resetLLMPreferredTags()
+                                syncPreferredTagsText()
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                HStack(spacing: 12) {
+                    Button("Save LLM Settings") {
+                        commitPreferredTagsText()
+                        viewModel.saveLLMConfiguration()
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    WindowStatusLine(message: viewModel.llmMessage, state: viewModel.llmState)
+                }
+            }
+            .padding(20)
+        }
+        .frame(minWidth: 620, minHeight: 560)
+        .onAppear(perform: syncPreferredTagsText)
+    }
+
+    private func syncPreferredTagsText() {
+        preferredTagsText = viewModel.llmConfiguration.normalizedPreferredTags.joined(separator: "\n")
+    }
+
+    private func commitPreferredTagsText() {
+        let tags = preferredTagsText
+            .components(separatedBy: .newlines)
+            .flatMap { $0.components(separatedBy: ",") }
+        viewModel.llmConfiguration.preferredTags = ImportedPhotoEditableMetadata.normalizedTags(tags)
+    }
+}
+
+struct LLMDiagnosticsView: View {
+    @ObservedObject var viewModel: AppViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("LLM Diagnostics")
+                .font(.title2.bold())
+
+            Text("The prepared image, prompt, and latest provider response are shown here.")
+                .foregroundStyle(.secondary)
+
+            if let diagnostic = viewModel.llmDiagnostic {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack(alignment: .top, spacing: 16) {
+                            diagnosticImage(diagnostic)
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(diagnostic.photoName)
+                                    .font(.headline)
+                                Text(diagnostic.createdAt.formatted(date: .abbreviated, time: .standard))
+                                    .foregroundStyle(.secondary)
+
+                                if let image = diagnostic.preparedImage {
+                                    Text("\(image.pixelWidth) x \(image.pixelHeight), \(ByteCountFormatter.string(fromByteCount: Int64(image.byteCount), countStyle: .file))")
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                if let suggestion = diagnostic.suggestion {
+                                    labeledDiagnosticValue("Title", suggestion.normalizedTitle ?? "None")
+                                    labeledDiagnosticValue("Tags", suggestion.normalizedTags.isEmpty ? "None" : suggestion.normalizedTags.joined(separator: ", "))
+                                }
+                            }
+                        }
+
+                        diagnosticTextBlock(title: "Prompt", text: diagnostic.prompt)
+                        diagnosticTextBlock(title: "Response", text: diagnostic.response)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } else {
+                ContentUnavailableView(
+                    "No LLM Request Yet",
+                    systemImage: "sparkles",
+                    description: Text("Use Suggest with LLM on a pending photo to inspect the submitted image and prompt.")
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 700, minHeight: 480)
+    }
+
+    @ViewBuilder
+    private func diagnosticImage(_ diagnostic: LLMDiagnosticSnapshot) -> some View {
+        if let data = diagnostic.preparedImage?.data,
+           let image = NSImage(data: data) {
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 220, height: 220)
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+        } else {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(.quaternary)
+                .frame(width: 220, height: 220)
+                .overlay {
+                    Image(systemName: "photo")
+                        .font(.largeTitle)
+                        .foregroundStyle(.secondary)
+                }
+        }
+    }
+
+    private func labeledDiagnosticValue(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .top) {
+            Text(label)
+                .foregroundStyle(.secondary)
+                .frame(width: 52, alignment: .leading)
+            Text(value)
+                .textSelection(.enabled)
+        }
+    }
+
+    private func diagnosticTextBlock(title: String, text: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.headline)
+            Text(text)
+                .font(.system(.caption, design: .monospaced))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
         }
     }
 }

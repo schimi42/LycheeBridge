@@ -31,7 +31,7 @@ final class ShareViewController: NSViewController {
             let files = try await collectPendingFiles()
             statusModel.message = "Imported \(files.count == 1 ? "1 photo" : "\(files.count) photos"). Opening LycheeBridge…"
             let bundle = try importStore.createBundle(items: files, sourceApplication: "Share Extension")
-            try openHostApp(bundleID: bundle.id)
+            try await openHostApp(bundleID: bundle.id)
             extensionContext?.completeRequest(returningItems: nil, completionHandler: nil)
         } catch {
             statusModel.message = error.localizedDescription
@@ -133,7 +133,7 @@ final class ShareViewController: NSViewController {
         return "\(suggestedName).\(ext)"
     }
 
-    private func openHostApp(bundleID: UUID) throws {
+    private func openHostApp(bundleID: UUID) async throws {
         var components = URLComponents()
         components.scheme = AppGroup.incomingURLScheme
         components.host = AppGroup.incomingURLHost
@@ -145,9 +145,24 @@ final class ShareViewController: NSViewController {
             throw ShareImportError.invalidOpenURL
         }
 
-        let opened = NSWorkspace.shared.open(url)
-        guard opened else {
-            throw ShareImportError.openHostApplicationFailed
+        let configuration = NSWorkspace.OpenConfiguration()
+        let hostAppURL = Bundle.main.bundleURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            NSWorkspace.shared.open(
+                [url],
+                withApplicationAt: hostAppURL,
+                configuration: configuration
+            ) { _, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: ())
+                }
+            }
         }
     }
 }

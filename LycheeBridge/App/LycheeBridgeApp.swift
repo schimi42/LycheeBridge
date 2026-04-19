@@ -121,23 +121,35 @@ struct LLMSettingsView: View {
                 GroupBox("Provider") {
                     VStack(alignment: .leading, spacing: 12) {
                         Picker("Provider", selection: $viewModel.llmConfiguration.providerKind) {
-                            ForEach(LLMProviderKind.allCases) { providerKind in
+                            ForEach(LLMProviderKind.selectableCases) { providerKind in
                                 Text(providerKind.title).tag(providerKind)
                             }
                         }
                         .pickerStyle(.menu)
 
-                        if viewModel.llmConfiguration.providerKind != .ollama {
-                            Text("Only Ollama is implemented in this build.")
+                        switch viewModel.llmConfiguration.providerKind {
+                        case .ollama:
+                            TextField("Ollama server URL", text: $viewModel.llmConfiguration.endpointURLString)
+                                .textFieldStyle(.roundedBorder)
+
+                            TextField("Ollama model", text: $viewModel.llmConfiguration.modelName)
+                                .textFieldStyle(.roundedBorder)
+                        case .openAI:
+                            TextField("OpenAI API base URL", text: $viewModel.llmConfiguration.openAIEndpointURLString)
+                                .textFieldStyle(.roundedBorder)
+
+                            SecureField("OpenAI API key", text: $viewModel.llmCredentials.openAIAPIKey)
+                                .textFieldStyle(.roundedBorder)
+
+                            TextField("OpenAI model", text: $viewModel.llmConfiguration.openAIModelName)
+                                .textFieldStyle(.roundedBorder)
+
+                            Text("The API key is stored in Keychain. The selected image preview is sent to OpenAI when suggestions are requested.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                        case .openWebUI, .openAICompatible, .gemini:
+                            EmptyView()
                         }
-
-                        TextField("Ollama server URL", text: $viewModel.llmConfiguration.endpointURLString)
-                            .textFieldStyle(.roundedBorder)
-
-                        TextField("Model", text: $viewModel.llmConfiguration.modelName)
-                            .textFieldStyle(.roundedBorder)
 
                         Toggle("Suggest titles", isOn: $viewModel.llmConfiguration.shouldSuggestTitle)
                             .toggleStyle(.switch)

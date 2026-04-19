@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
 final class AppViewModel: ObservableObject {
     @Published var configuration: LycheeConfiguration
     @Published var llmConfiguration: LLMConfiguration
+    @Published var llmCredentials: LLMCredentials
     @Published var credentials: LycheeCredentials
     @Published var albums: [LycheeAlbum] = []
     @Published var tags: [LycheeTag] = []
@@ -20,7 +21,7 @@ final class AppViewModel: ObservableObject {
     @Published var destinationMessage: String = "Load albums to choose a destination."
     @Published var tagMessage: String = "Load tags to inspect Lychee tag suggestions."
     @Published var uploadMessage: String = "Waiting for photos and a destination album."
-    @Published var llmMessage: String = "Configure Ollama, then request suggestions for pending photos."
+    @Published var llmMessage: String = "Configure an LLM provider, then request suggestions for pending photos."
     @Published var connectionState: AsyncButtonState = .idle
     @Published var albumState: AsyncButtonState = .idle
     @Published var tagState: AsyncButtonState = .idle
@@ -38,13 +39,18 @@ final class AppViewModel: ObservableObject {
 
     init() {
         let loadedLLMConfiguration: LLMConfiguration
+        let loadedLLMCredentials: LLMCredentials
         do {
-            loadedLLMConfiguration = try llmConfigurationStore.load()
+            let loaded = try llmConfigurationStore.load()
+            loadedLLMConfiguration = loaded.0
+            loadedLLMCredentials = loaded.1
         } catch {
             loadedLLMConfiguration = LLMConfiguration()
+            loadedLLMCredentials = LLMCredentials()
             self.llmMessage = error.localizedDescription
         }
         self.llmConfiguration = loadedLLMConfiguration
+        self.llmCredentials = loadedLLMCredentials
 
         do {
             let loaded = try configurationStore.load()
@@ -120,7 +126,7 @@ final class AppViewModel: ObservableObject {
 
     func saveLLMConfiguration() {
         do {
-            try llmConfigurationStore.save(llmConfiguration)
+            try llmConfigurationStore.save(configuration: llmConfiguration, credentials: llmCredentials)
             llmMessage = "Saved LLM settings."
             llmState = .succeeded
         } catch {
@@ -377,7 +383,7 @@ final class AppViewModel: ObservableObject {
     private func suggestMetadataForItem(_ item: ImportedPhoto) async throws {
         let image = try LLMImagePreparer.prepare(photo: item, options: llmConfiguration.imageOptions)
         let request = LLMMetadataRequest(photo: item, image: image, configuration: llmConfiguration)
-        let provider = try llmProviderFactory.makeProvider(configuration: llmConfiguration)
+        let provider = try llmProviderFactory.makeProvider(configuration: llmConfiguration, credentials: llmCredentials)
         llmDiagnostic = LLMDiagnosticSnapshot(
             id: UUID(),
             createdAt: Date(),

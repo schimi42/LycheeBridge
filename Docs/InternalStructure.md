@@ -41,12 +41,16 @@ Defines the app entry point and windows:
 - Metadata diagnostics: `MetadataDiagnosticsView`.
 - Lychee tags: `LycheeTagsView`.
 - Upload progress: `UploadProgressWindow`.
+- LLM settings: `LLMSettingsView`.
+- LLM diagnostics: `LLMDiagnosticsView`.
 
 It also defines menu commands:
 
 - `Diagnostics > Show API Diagnostics`
 - `Diagnostics > Show Metadata Diagnostics`
 - `Lychee > Show Tags`
+- `LLM > Show LLM Settings`
+- `LLM > Show LLM Diagnostics`
 
 ### `ContentView.swift`
 
@@ -166,19 +170,24 @@ The preparer uses ImageIO to load an orientation-correct thumbnail, encodes it a
 
 Defines the provider-neutral LLM configuration and metadata suggestion models.
 
-The configuration stores the provider kind, endpoint, model name, editable prompt, preferred tag list, title/tag suggestion toggles, and image preparation options. Requests combine an imported photo, a prepared preview image, and the current configuration into the final prompt sent to a provider. The model already names the planned provider families, but only Ollama is implemented at this stage. Diagnostic snapshots keep the last submitted image, prompt, raw response, and parsed suggestion for inspection.
+The configuration stores the provider kind, provider endpoints and model names, editable prompt, preferred tag list, title/tag suggestion toggles, and image preparation options. Requests combine an imported photo, a prepared preview image, and the current configuration into the final prompt sent to a provider. Diagnostic snapshots keep the last submitted image, prompt, raw response, and parsed suggestion for inspection.
 
 ### `LLMConfigurationStore.swift`
 
 Persists LLM settings separately from Lychee server credentials.
 
-The store writes a small JSON file in the shared app container. Keeping this separate avoids coupling the experimental LLM configuration to the stable Lychee login settings.
+The store writes non-secret LLM settings to a small JSON file in the shared app container. Provider secrets, such as the OpenAI API key, are stored through `KeychainStore`.
 
 ### `LLMProvider.swift`
 
 Defines the provider abstraction for LLM metadata suggestions.
 
-`LLMMetadataProvider` is intentionally small: it accepts an `LLMMetadataRequest` and returns an `LLMMetadataSuggestion`. The first concrete provider is `OllamaMetadataProvider`, which targets Ollama's `/api/generate` endpoint with a non-streaming JSON response and a Base64 image payload.
+`LLMMetadataProvider` is intentionally small: it accepts an `LLMMetadataRequest` and returns an `LLMMetadataSuggestion`.
+
+Concrete providers:
+
+- `OllamaMetadataProvider` targets Ollama's `/api/generate` endpoint with a non-streaming JSON response and a Base64 image payload.
+- `OpenAIMetadataProvider` targets OpenAI's Responses API with the prepared JPEG preview as a Base64 data URL and requests a structured JSON metadata response.
 
 ### `LycheeConfigurationStore.swift`
 
@@ -186,7 +195,7 @@ Stores non-secret configuration in the shared container and stores the password 
 
 ### `KeychainStore.swift`
 
-Small wrapper around macOS Keychain APIs for storing the Lychee password.
+Small wrapper around macOS Keychain APIs for storing the Lychee password and LLM provider secrets.
 
 ### `LycheeAPI.swift`
 

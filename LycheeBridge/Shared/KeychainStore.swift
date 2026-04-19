@@ -2,15 +2,32 @@ import Foundation
 import Security
 
 struct KeychainStore {
-    private static let service = "LycheeBridge.LycheeCredentials"
-    private static let account = "default"
+    private static let lycheeService = "LycheeBridge.LycheeCredentials"
+    private static let openAIService = "LycheeBridge.OpenAICredentials"
+    private static let defaultAccount = "default"
 
     func save(password: String) throws {
-        let data = Data(password.utf8)
+        try saveSecret(password, service: Self.lycheeService, account: Self.defaultAccount)
+    }
+
+    func loadPassword() throws -> String {
+        try loadSecret(service: Self.lycheeService, account: Self.defaultAccount)
+    }
+
+    func saveOpenAIAPIKey(_ apiKey: String) throws {
+        try saveSecret(apiKey, service: Self.openAIService, account: Self.defaultAccount)
+    }
+
+    func loadOpenAIAPIKey() throws -> String {
+        try loadSecret(service: Self.openAIService, account: Self.defaultAccount)
+    }
+
+    private func saveSecret(_ secret: String, service: String, account: String) throws {
+        let data = Data(secret.utf8)
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: Self.service,
-            kSecAttrAccount as String: Self.account
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
         ]
 
         SecItemDelete(query as CFDictionary)
@@ -25,11 +42,11 @@ struct KeychainStore {
         }
     }
 
-    func loadPassword() throws -> String {
+    private func loadSecret(service: String, account: String) throws -> String {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: Self.service,
-            kSecAttrAccount as String: Self.account,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
             kSecMatchLimit as String: kSecMatchLimitOne,
             kSecReturnData as String: true
         ]

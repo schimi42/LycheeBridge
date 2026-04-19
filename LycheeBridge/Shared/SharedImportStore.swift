@@ -15,30 +15,44 @@ struct SharedImportStore {
         let bundleDirectory = try bundleDirectoryURL(for: bundleID)
         try FileManager.default.createDirectory(at: bundleDirectory, withIntermediateDirectories: true)
 
-        let importedItems = try items.map { item -> ImportedPhoto in
-            let destinationName = uniqueFilename(from: item.originalFilename, in: bundleDirectory)
-            let destinationURL = bundleDirectory.appendingPathComponent(destinationName, isDirectory: false)
-            try copyItemToSharedBundle(from: item.sourceURL, to: destinationURL)
-
-            let attributes = try FileManager.default.attributesOfItem(atPath: destinationURL.path)
-            let fileSize = attributes[.size] as? NSNumber
-            let metadata = PhotoMetadataExtractor.extract(from: destinationURL)
-
-            return ImportedPhoto(
-                id: UUID(),
-                displayName: item.displayName,
-                originalFilename: item.originalFilename,
-                mimeType: item.mimeType,
-                typeIdentifier: item.typeIdentifier,
-                fileSize: fileSize?.int64Value ?? 0,
-                fileURL: destinationURL,
-                metadata: metadata
-            )
-        }
+        let importedItems = try importItems(items, into: bundleDirectory)
 
         let bundle = ShareImportBundle(id: bundleID, createdAt: Date(), sourceApplication: sourceApplication, items: importedItems)
         try save(bundle: bundle)
         return bundle
+    }
+
+    func appendItems(_ items: [PendingImportedFile], to bundle: ShareImportBundle) throws -> ShareImportBundle {
+        let bundleDirectory = try bundleDirectoryURL(for: bundle.id)
+        try FileManager.default.createDirectory(at: bundleDirectory, withIntermediateDirectories: true)
+
+        let importedItems = try importItems(items, into: bundleDirectory)
+        let updatedBundle = ShareImportBundle(
+            id: bundle.id,
+            createdAt: bundle.createdAt,
+            sourceApplication: bundle.sourceApplication,
+            items: bundle.items + importedItems
+        )
+        try save(bundle: updatedBundle)
+        return updatedBundle
+    }
+
+    func appendBundle(_ incomingBundle: ShareImportBundle, to bundle: ShareImportBundle) throws -> ShareImportBundle {
+        guard incomingBundle.id != bundle.id else {
+            return incomingBundle
+        }
+
+        let pendingFiles = incomingBundle.items.map { item in
+            PendingImportedFile(
+                sourceURL: item.fileURL,
+                displayName: item.displayName,
+                originalFilename: item.originalFilename,
+                mimeType: item.mimeType,
+                typeIdentifier: item.typeIdentifier
+            )
+        }
+
+        return try appendItems(pendingFiles, to: bundle)
     }
 
     func save(bundle: ShareImportBundle) throws {
@@ -117,6 +131,29 @@ struct SharedImportStore {
                 return candidate
             }
             counter += 1
+        }
+    }
+
+    private func importItems(_ items: [PendingImportedFile], into bundleDirectory: URL) throws -> [ImportedPhoto] {
+        try items.map { item -> ImportedPhoto in
+            let destinationName = uniqueFilename(from: item.originalFilename, in: bundleDirectory)
+            let destinationURL = bundleDirectory.appendingPathComponent(destinationName, isDirectory: false)
+            try copyItemToSharedBundle(from: item.sourceURL, to: destinationURL)
+
+            let attributes = try FileManager.default.attributesOfItem(atPath: destinationURL.path)
+            let fileSize = attributes[.size] as? NSNumber
+            let metadata = PhotoMetadataExtractor.extract(from: destinationURL)
+
+            return ImportedPhoto(
+                id: UUID(),
+                displayName: item.displayName,
+                originalFilename: item.originalFilename,
+                mimeType: item.mimeType,
+                typeIdentifier: item.typeIdentifier,
+                fileSize: fileSize?.int64Value ?? 0,
+                fileURL: destinationURL,
+                metadata: metadata
+            )
         }
     }
 

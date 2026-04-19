@@ -13,7 +13,7 @@ struct LycheeBridgeApp: App {
     @StateObject private var viewModel = AppViewModel()
 
     var body: some Scene {
-        WindowGroup {
+        Window("LycheeBridge", id: "main") {
             ContentView(viewModel: viewModel)
         }
         .windowResizability(.contentSize)

@@ -146,6 +146,8 @@ final class ShareViewController: NSViewController {
         }
 
         let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        configuration.allowsRunningApplicationSubstitution = false
         let hostAppURL = Bundle.main.bundleURL
             .deletingLastPathComponent()
             .deletingLastPathComponent()

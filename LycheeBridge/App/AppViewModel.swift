@@ -37,6 +37,7 @@ final class AppViewModel: ObservableObject {
     @Published var llmState: AsyncButtonState = .idle
     @Published var debugLog: String = "No debug trace yet."
     @Published var llmDiagnostic: LLMDiagnosticSnapshot?
+    private var didLoadInitialState = false
 
     let uploader = UploadCoordinator()
 
@@ -107,6 +108,9 @@ final class AppViewModel: ObservableObject {
     }
 
     func loadInitialState() async {
+        guard didLoadInitialState == false else { return }
+        didLoadInitialState = true
+
         await refreshPendingBundle()
         if configuration.serverURLString.isEmpty == false, configuration.username.isEmpty == false {
             await refreshAlbums()
@@ -121,9 +125,8 @@ final class AppViewModel: ObservableObject {
                   let bundleID = components.queryItems?.first(where: { $0.name == "id" })?.value,
                   let uuid = UUID(uuidString: bundleID) {
             do {
-                let bundle = try importStore.bundle(withID: uuid)
-                setPendingBundle(bundle)
-                importMessage = "Loaded \(bundle.photoCountDescription) from \(bundle.sourceApplication ?? "Share Extension")."
+                try importBundle(withID: uuid)
+                NSApplication.shared.activate(ignoringOtherApps: true)
             } catch {
                 importMessage = error.localizedDescription
             }
@@ -390,12 +393,48 @@ final class AppViewModel: ObservableObject {
 
     func refreshPendingBundle() async {
         do {
-            setPendingBundle(try importStore.latestBundle())
+            guard let latestBundle = try importStore.latestBundle() else {
+                setPendingBundle(nil)
+                importMessage = "No pending photos."
+                return
+            }
+
+            try importBundle(latestBundle)
             if let pendingBundle {
                 importMessage = "Ready to upload \(pendingBundle.photoCountDescription)."
-            } else {
-                importMessage = "No pending photos."
             }
+        } catch {
+            importMessage = error.localizedDescription
+        }
+    }
+
+    func importDroppedPhotos(from urls: [URL]) async {
+        guard uploadState.isRunning == false else {
+            importMessage = "Wait for the current upload to finish before importing new photos."
+            return
+        }
+
+        let files = urls.compactMap(pendingImportedFile)
+        guard files.isEmpty == false else {
+            importMessage = "Drop image files to create a pending import."
+            return
+        }
+
+        do {
+            let bundle: ShareImportBundle
+            let didAppend = pendingBundle != nil
+            if let pendingBundle {
+                bundle = try importStore.appendItems(files, to: pendingBundle)
+            } else {
+                bundle = try importStore.createBundle(items: files, sourceApplication: "Drag and Drop")
+            }
+            setPendingBundle(bundle)
+            uploader.reset()
+            importMessage = didAppend
+                ? "Added \(files.count) dropped photo\(files.count == 1 ? "" : "s"). Ready to upload \(bundle.photoCountDescription)."
+                : "Imported \(bundle.photoCountDescription) from dropped files."
+            uploadMessage = "Waiting for upload."
+            uploadState = .idle
         } catch {
             importMessage = error.localizedDescription
         }
@@ -481,6 +520,36 @@ final class AppViewModel: ObservableObject {
                 uploadMessage += " Cleanup failed: \(error.localizedDescription)"
             }
         }
+    }
+
+    private func importBundle(withID bundleID: UUID) throws {
+        do {
+            try importBundle(importStore.bundle(withID: bundleID))
+        } catch SharedStoreError.bundleNotFound where pendingBundle != nil {
+            return
+        }
+    }
+
+    private func importBundle(_ incomingBundle: ShareImportBundle) throws {
+        if let pendingBundle,
+           pendingBundle.id != incomingBundle.id {
+            guard uploadState.isRunning == false else {
+                importMessage = "Received \(incomingBundle.photoCountDescription) from \(incomingBundle.sourceApplication ?? "Share Extension"). Wait for the current upload to finish before adding it."
+                return
+            }
+
+            let bundle = try importStore.appendBundle(incomingBundle, to: pendingBundle)
+            try importStore.clear(bundleID: incomingBundle.id)
+            setPendingBundle(bundle)
+            uploader.reset()
+            importMessage = "Added \(incomingBundle.photoCountDescription) from \(incomingBundle.sourceApplication ?? "Share Extension"). Ready to upload \(bundle.photoCountDescription)."
+            uploadMessage = "Waiting for upload."
+            uploadState = .idle
+            return
+        }
+
+        setPendingBundle(incomingBundle)
+        importMessage = "Loaded \(incomingBundle.photoCountDescription) from \(incomingBundle.sourceApplication ?? "Share Extension")."
     }
 
     private func makeClient() -> LycheeClient {
@@ -667,6 +736,25 @@ final class AppViewModel: ObservableObject {
         }
 
         editableMetadata[item.id] = metadata
+    }
+
+    private func pendingImportedFile(from url: URL) -> PendingImportedFile? {
+        guard url.isFileURL else {
+            return nil
+        }
+
+        let type = UTType(filenameExtension: url.pathExtension)
+        guard type?.conforms(to: .image) == true else {
+            return nil
+        }
+
+        return PendingImportedFile(
+            sourceURL: url,
+            displayName: url.lastPathComponent,
+            originalFilename: url.lastPathComponent,
+            mimeType: type?.preferredMIMEType ?? "application/octet-stream",
+            typeIdentifier: type?.identifier ?? "public.image"
+        )
     }
 
     private func setPendingBundle(_ bundle: ShareImportBundle?) {

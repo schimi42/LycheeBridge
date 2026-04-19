@@ -5,6 +5,7 @@ struct ContentView: View {
     @ObservedObject var viewModel: AppViewModel
     @Environment(\.openWindow) private var openWindow
     @State private var isConfirmingClearPendingImport = false
+    @State private var isPendingImportDropTargeted = false
 
     var body: some View {
         NavigationStack {
@@ -80,6 +81,33 @@ struct ContentView: View {
                 Text("Configured server: \(viewModel.configuredServerLabel)")
                     .foregroundStyle(.secondary)
 
+                HStack(spacing: 10) {
+                    Image(systemName: "square.and.arrow.down")
+                        .font(.title3)
+                        .foregroundStyle(isPendingImportDropTargeted ? Color.accentColor : Color.secondary)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Drop photos here")
+                            .font(.subheadline.weight(.semibold))
+                        Text("Dropped image files are added to the current pending import.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(isPendingImportDropTargeted ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.08))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(
+                            isPendingImportDropTargeted ? Color.accentColor : Color.secondary.opacity(0.25),
+                            style: StrokeStyle(lineWidth: 1, dash: [6, 4])
+                        )
+                )
+
                 if let items = viewModel.pendingBundle?.items, items.isEmpty == false {
                     pendingFileList(items: items)
                 }
@@ -114,6 +142,14 @@ struct ContentView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .dropDestination(for: URL.self) { urls, _ in
+            Task {
+                await viewModel.importDroppedPhotos(from: urls)
+            }
+            return true
+        } isTargeted: { isTargeted in
+            isPendingImportDropTargeted = isTargeted
         }
     }
 

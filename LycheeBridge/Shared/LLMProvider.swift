@@ -335,12 +335,104 @@ private enum LLMMetadataSuggestionParser {
                 continue
             }
 
+            if let suggestion = flexibleSuggestion(from: data) {
+                return suggestion
+            }
+
             if let suggestion = try? JSONDecoder().decode(LLMMetadataSuggestion.self, from: data) {
                 return suggestion
             }
         }
 
         throw LLMProviderError.invalidResponse
+    }
+
+    private static func flexibleSuggestion(from data: Data) -> LLMMetadataSuggestion? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+
+        let candidateObjects = [
+            object,
+            object["suggestion"] as? [String: Any],
+            object["metadata"] as? [String: Any],
+            object["result"] as? [String: Any]
+        ].compactMap { $0 }
+
+        for candidate in candidateObjects {
+            let title = firstString(
+                in: candidate,
+                matching: ["title", "Title", "titel", "Titel", "suggested_title", "suggestedTitle", "photo_title", "photoTitle", "name", "caption"]
+            )
+            let tags = firstTags(
+                in: candidate,
+                matching: ["tags", "Tags", "tag", "keywords", "Keywords", "schlagworte", "Schlagworte"]
+            )
+
+            if title != nil || tags.isEmpty == false {
+                return LLMMetadataSuggestion(title: title, tags: tags)
+            }
+        }
+
+        return nil
+    }
+
+    private static func firstString(in object: [String: Any], matching keys: [String]) -> String? {
+        let lookup = object.reduce(into: [String: Any]()) { partialResult, pair in
+            partialResult[normalizedKey(pair.key)] = pair.value
+        }
+
+        for key in keys {
+            guard let value = lookup[normalizedKey(key)] else {
+                continue
+            }
+
+            if let string = value as? String {
+                let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty == false {
+                    return trimmed
+                }
+            }
+        }
+
+        return nil
+    }
+
+    private static func firstTags(in object: [String: Any], matching keys: [String]) -> [String] {
+        let lookup = object.reduce(into: [String: Any]()) { partialResult, pair in
+            partialResult[normalizedKey(pair.key)] = pair.value
+        }
+
+        for key in keys {
+            guard let value = lookup[normalizedKey(key)] else {
+                continue
+            }
+
+            if let strings = value as? [String] {
+                return ImportedPhotoEditableMetadata.normalizedTags(strings)
+            }
+
+            if let values = value as? [Any] {
+                return ImportedPhotoEditableMetadata.normalizedTags(values.compactMap { $0 as? String })
+            }
+
+            if let string = value as? String {
+                return ImportedPhotoEditableMetadata.normalizedTags(
+                    string
+                        .split { $0 == "," || $0 == "\n" || $0 == ";" }
+                        .map(String.init)
+                )
+            }
+        }
+
+        return []
+    }
+
+    private static func normalizedKey(_ key: String) -> String {
+        key
+            .replacingOccurrences(of: "_", with: "")
+            .replacingOccurrences(of: "-", with: "")
+            .lowercased()
     }
 
     private static func codeFenceStripped(_ value: String) -> String? {

@@ -69,6 +69,41 @@ struct LycheeClient {
         return try TagResponseParser.parseTags(from: payload)
     }
 
+    func fetchPhotos(albumID: String) async throws -> [LycheePhoto] {
+        var page = 1
+        var photos: [LycheePhoto] = []
+        var lastPage = 1
+
+        repeat {
+            let payload = try await fetchPhotoPage(albumID: albumID, page: page)
+            photos.append(contentsOf: try AlbumPhotoResponseParser.parsePhotos(from: payload))
+
+            if let pagination = AlbumPhotoResponseParser.parsePagination(from: payload) {
+                lastPage = pagination.lastPage
+                page = pagination.currentPage + 1
+            } else {
+                lastPage = page
+                page += 1
+            }
+        } while page <= lastPage
+
+        let unique = Dictionary(grouping: photos, by: \.id).compactMap { _, group in group.first }
+        return unique.sorted {
+            $0.displayTitle.localizedCaseInsensitiveCompare($1.displayTitle) == .orderedAscending
+        }
+    }
+
+    func downloadPreview(for photo: LycheePhoto) async throws -> Data {
+        guard let url = photo.llmPreviewURL else {
+            throw LycheeClientError.invalidResponse
+        }
+
+        return try await performAuthenticatedRequest {
+            let request = try makeBinaryGETRequest(url: url)
+            return try await performBinaryDataRequest(request)
+        }
+    }
+
     func upload(photo: ImportedPhoto, to albumID: String) async throws -> String? {
         let payload = try await performAuthenticatedRequest {
             try await performFirstSuccessfulRequest(
@@ -232,6 +267,24 @@ struct LycheeClient {
         )
     }
 
+    private func fetchPhotoPage(albumID: String, page: Int) async throws -> Data {
+        try await performAuthenticatedRequest {
+            try await performFirstSuccessfulRequest(
+                candidatePaths: [
+                    "api/v2/Album::photos",
+                    "api/Album::photos"
+                ],
+                builder: { path in
+                    try makeGETRequest(path: path, queryItems: [
+                        URLQueryItem(name: "album_id", value: albumID),
+                        URLQueryItem(name: "page", value: String(page)),
+                        URLQueryItem(name: "_", value: String(Int(Date().timeIntervalSince1970 * 1000)))
+                    ])
+                }
+            )
+        }
+    }
+
     private func sha1Checksum(for url: URL) throws -> String {
         let data = try Data(contentsOf: url)
         let digest = Insecure.SHA1.hash(data: data)
@@ -296,6 +349,19 @@ struct LycheeClient {
         request.httpMethod = "GET"
         request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         applyDefaultHeaders(to: &request, contentType: "application/json")
+        return request
+    }
+
+    private func makeBinaryGETRequest(url: URL) throws -> URLRequest {
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        request.setValue("image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8", forHTTPHeaderField: "Accept")
+        if let origin = originString {
+            request.setValue(origin, forHTTPHeaderField: "Origin")
+            request.setValue(origin + "/", forHTTPHeaderField: "Referer")
+        }
+        applyCookieHeader(to: &request)
         return request
     }
 
@@ -541,6 +607,58 @@ struct LycheeClient {
         } catch {
             recordDebugTrace(
                 stage: request.url?.lastPathComponent ?? "request",
+                request: request,
+                responseStatus: nil,
+                responseHeaders: [:],
+                responseBody: error.localizedDescription,
+                extra: cookieDebugDump()
+            )
+            throw LycheeClientError.network(error.localizedDescription)
+        }
+    }
+
+    private func performBinaryDataRequest(_ request: URLRequest) async throws -> Data {
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw LycheeClientError.invalidResponse
+            }
+
+            let headerFields: [String: String] = httpResponse.allHeaderFields.reduce(into: [:]) { partialResult, pair in
+                guard let keyString = pair.key as? String else { return }
+                if let valueString = pair.value as? String {
+                    partialResult[keyString] = valueString
+                } else {
+                    partialResult[keyString] = String(describing: pair.value)
+                }
+            }
+
+            if let url = request.url {
+                let cookies = HTTPCookie.cookies(withResponseHeaderFields: headerFields, for: url)
+                if cookies.isEmpty == false {
+                    cookieStorage.setCookies(cookies, for: url, mainDocumentURL: normalizedBaseURL)
+                }
+            }
+
+            recordDebugTrace(
+                stage: "photo preview",
+                request: request,
+                responseStatus: httpResponse.statusCode,
+                responseHeaders: headerFields,
+                responseBody: "<binary image: \(data.count) bytes>",
+                extra: cookieDebugDump()
+            )
+
+            guard (200..<300).contains(httpResponse.statusCode) else {
+                throw LycheeClientError.httpError(statusCode: httpResponse.statusCode, message: nil)
+            }
+
+            return data
+        } catch let error as LycheeClientError {
+            throw error
+        } catch {
+            recordDebugTrace(
+                stage: "photo preview",
                 request: request,
                 responseStatus: nil,
                 responseHeaders: [:],

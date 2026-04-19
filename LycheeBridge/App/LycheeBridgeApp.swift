@@ -48,6 +48,11 @@ struct LycheeBridgeApp: App {
         }
         .defaultSize(width: 900, height: 680)
 
+        WindowGroup("Existing Photo Metadata", id: "existingPhotoMetadata") {
+            ExistingPhotoMetadataView(viewModel: viewModel)
+        }
+        .defaultSize(width: 820, height: 640)
+
         .commands {
             DiagnosticsCommands()
             LycheeCommands()
@@ -83,6 +88,11 @@ struct LLMCommands: Commands {
                 openWindow(id: "llmDiagnostics")
             }
             .keyboardShortcut("l", modifiers: [.command, .shift])
+
+            Button("Show Existing Photo Metadata") {
+                openWindow(id: "existingPhotoMetadata")
+            }
+            .keyboardShortcut("e", modifiers: [.command, .shift])
         }
     }
 }
@@ -343,6 +353,199 @@ struct LLMDiagnosticsView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(10)
                 .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+        }
+    }
+}
+
+struct ExistingPhotoMetadataView: View {
+    @ObservedObject var viewModel: AppViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Existing Photo Metadata")
+                .font(.title2.bold())
+
+            Text("Scan a Lychee album, send matching photos to the configured LLM, and apply suggested titles and tags back to Lychee.")
+                .foregroundStyle(.secondary)
+
+            GroupBox("Album Scan") {
+                VStack(alignment: .leading, spacing: 12) {
+                    Picker("Album", selection: $viewModel.existingPhotoAlbumID) {
+                        ForEach(viewModel.albums) { album in
+                            Text(album.displayTitle).tag(album.id)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .disabled(viewModel.albums.isEmpty || viewModel.existingPhotoState.isRunning)
+
+                    Picker("Photos", selection: $viewModel.existingPhotoFilter) {
+                        ForEach(ExistingPhotoMetadataFilter.allCases) { filter in
+                            Text(filter.title).tag(filter)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(viewModel.existingPhotoState.isRunning)
+
+                    Toggle("Overwrite existing titles by default", isOn: $viewModel.existingPhotoOverwriteExistingTitles)
+                        .toggleStyle(.switch)
+                        .disabled(viewModel.existingPhotoState.isRunning)
+
+                    HStack(spacing: 12) {
+                        Button("Load Photos") {
+                            Task { await viewModel.loadExistingPhotosForMetadata() }
+                        }
+                        .disabled(viewModel.existingPhotoState.isRunning || viewModel.existingPhotoAlbumID.isEmpty)
+
+                        Button("Suggest and Apply") {
+                            Task { await viewModel.suggestMetadataForExistingPhotos() }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(viewModel.existingPhotoState.isRunning || viewModel.filteredExistingPhotos.isEmpty)
+
+                        WindowStatusLine(message: viewModel.existingPhotoMessage, state: viewModel.existingPhotoState)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            Text("Suggestions are written directly to Lychee. Tags are appended. Photos without a meaningful title always receive one; existing titles are replaced only when enabled globally or per photo.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Divider()
+
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 10) {
+                    if viewModel.existingPhotoResults.isEmpty {
+                        ForEach(viewModel.filteredExistingPhotos) { photo in
+                            ExistingPhotoRow(
+                                photo: photo,
+                                result: nil,
+                                overwriteExistingTitle: Binding(
+                                    get: { viewModel.existingPhotoShouldOverwriteTitle(for: photo) },
+                                    set: { viewModel.setExistingPhotoTitleOverwrite($0, for: photo.id) }
+                                ),
+                                canEditTitleOverwrite: viewModel.existingPhotoState.isRunning == false
+                            )
+                        }
+                    } else {
+                        ForEach(viewModel.existingPhotoResults) { result in
+                            ExistingPhotoRow(
+                                photo: result.photo,
+                                result: result,
+                                overwriteExistingTitle: Binding(
+                                    get: { viewModel.existingPhotoShouldOverwriteTitle(for: result.photo) },
+                                    set: { viewModel.setExistingPhotoTitleOverwrite($0, for: result.photo.id) }
+                                ),
+                                canEditTitleOverwrite: viewModel.existingPhotoState.isRunning == false
+                            )
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 720, minHeight: 520)
+        .onAppear {
+            viewModel.prepareExistingPhotoMetadataWindow()
+        }
+    }
+}
+
+private struct ExistingPhotoRow: View {
+    let photo: LycheePhoto
+    let result: ExistingPhotoMetadataResult?
+    @Binding var overwriteExistingTitle: Bool
+    let canEditTitleOverwrite: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(photo.displayTitle)
+                    .font(.headline)
+                    .lineLimit(1)
+
+                Text(photo.id)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+
+                Text(metadataSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+
+                if let suggestion = result?.suggestion {
+                    Text("Suggested: \(suggestion.normalizedTitle ?? "No title") · \(suggestion.normalizedTags.joined(separator: ", "))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+
+                if photo.hasMeaningfulTitle {
+                    Toggle("Replace existing title", isOn: $overwriteExistingTitle)
+                        .toggleStyle(.checkbox)
+                        .font(.caption)
+                        .disabled(canEditTitleOverwrite == false)
+                } else {
+                    Text("Title will be applied")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+
+            Text(statusText)
+                .font(.caption)
+                .foregroundStyle(statusColor)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 180, alignment: .trailing)
+        }
+        .padding(10)
+        .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var metadataSummary: String {
+        let titleState = photo.hasMeaningfulTitle ? "title set" : "no title"
+        let tagState = photo.normalizedTags.isEmpty ? "no tags" : photo.normalizedTags.joined(separator: ", ")
+        return "\(titleState) · \(tagState)"
+    }
+
+    private var statusText: String {
+        guard let result else {
+            return photo.needsMetadata ? "Needs metadata" : "Has metadata"
+        }
+
+        switch result.status {
+        case .pending:
+            return "Waiting"
+        case .preparing:
+            return "Preparing"
+        case .suggesting:
+            return "Asking LLM"
+        case .applying:
+            return "Applying"
+        case .applied:
+            return result.message
+        case .failed(let message):
+            return message
+        }
+    }
+
+    private var statusColor: Color {
+        guard let result else {
+            return photo.needsMetadata ? .orange : .secondary
+        }
+
+        switch result.status {
+        case .applied:
+            return .green
+        case .failed:
+            return .red
+        case .pending, .preparing, .suggesting, .applying:
+            return .secondary
         }
     }
 }

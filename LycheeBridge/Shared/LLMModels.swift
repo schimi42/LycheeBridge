@@ -128,14 +128,35 @@ struct LLMCredentials: Hashable {
 }
 
 struct LLMMetadataRequest: Hashable {
-    let photo: ImportedPhoto
+    let photoName: String
     let image: PreparedLLMImage
     let configuration: LLMConfiguration
+    let additionalContext: [String]
+
+    init(
+        photoName: String,
+        image: PreparedLLMImage,
+        configuration: LLMConfiguration,
+        additionalContext: [String] = []
+    ) {
+        self.photoName = photoName
+        self.image = image
+        self.configuration = configuration
+        self.additionalContext = additionalContext
+    }
+
+    init(photo: ImportedPhoto, image: PreparedLLMImage, configuration: LLMConfiguration) {
+        self.init(photoName: photo.displayName, image: image, configuration: configuration)
+    }
 
     var prompt: String {
         var parts = [
             configuration.normalizedPrompt
         ]
+
+        if additionalContext.isEmpty == false {
+            parts.append(additionalContext.joined(separator: "\n"))
+        }
 
         let preferredTags = configuration.normalizedPreferredTags
         if preferredTags.isEmpty == false {
@@ -152,6 +173,11 @@ struct LLMMetadataRequest: Hashable {
 struct LLMMetadataSuggestion: Codable, Hashable {
     var title: String?
     var tags: [String]
+
+    init(title: String?, tags: [String]) {
+        self.title = title
+        self.tags = tags
+    }
 
     var normalizedTitle: String? {
         let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

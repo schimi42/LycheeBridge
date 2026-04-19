@@ -72,6 +72,23 @@ enum LLMImagePreparer {
             throw LLMImagePreparationError.unsupportedImage
         }
 
+        return try prepare(sourcePhotoID: sourcePhotoID, imageSource: source, options: options)
+    }
+
+    static func prepare(sourcePhotoID: UUID, data: Data, options: Options = defaultOptions) throws -> PreparedLLMImage {
+        let options = try options.validated()
+        let sourceOptions = [
+            kCGImageSourceShouldCache: false
+        ] as CFDictionary
+
+        guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else {
+            throw LLMImagePreparationError.unsupportedImage
+        }
+
+        return try prepare(sourcePhotoID: sourcePhotoID, imageSource: source, options: options)
+    }
+
+    private static func prepare(sourcePhotoID: UUID, imageSource source: CGImageSource, options: Options) throws -> PreparedLLMImage {
         let thumbnailOptions = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,

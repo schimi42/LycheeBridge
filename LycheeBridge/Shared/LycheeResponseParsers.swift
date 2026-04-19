@@ -127,6 +127,129 @@ enum TagResponseParser {
     }
 }
 
+enum AlbumPhotoResponseParser {
+    static func parsePhotos(from data: Data) throws -> [LycheePhoto] {
+        let json = try JSONSerialization.jsonObject(with: data)
+        var photos: [LycheePhoto] = []
+
+        collectPhotos(from: json, into: &photos)
+
+        let unique = Dictionary(grouping: photos, by: \.id).compactMap { _, group in group.first }
+        return unique.sorted {
+            $0.displayTitle.localizedCaseInsensitiveCompare($1.displayTitle) == .orderedAscending
+        }
+    }
+
+    static func parsePagination(from data: Data) -> (currentPage: Int, lastPage: Int)? {
+        guard let dictionary = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+
+        guard let currentPage = intValue(for: ["current_page", "currentPage"], in: dictionary),
+              let lastPage = intValue(for: ["last_page", "lastPage"], in: dictionary) else {
+            return nil
+        }
+
+        return (currentPage, lastPage)
+    }
+
+    private static func collectPhotos(from value: Any, into photos: inout [LycheePhoto]) {
+        if let dictionary = value as? [String: Any] {
+            if let photo = makePhoto(from: dictionary) {
+                photos.append(photo)
+            }
+
+            for key in ["photos", "data"] {
+                if let array = dictionary[key] as? [Any] {
+                    collectPhotos(from: array, into: &photos)
+                }
+            }
+        } else if let array = value as? [Any] {
+            for item in array {
+                collectPhotos(from: item, into: &photos)
+            }
+        }
+    }
+
+    private static func makePhoto(from dictionary: [String: Any]) -> LycheePhoto? {
+        guard let id = stringValue(for: ["id", "photo_id", "photoID"], in: dictionary),
+              id.count == 24 else {
+            return nil
+        }
+
+        let albumID = stringValue(for: ["album_id", "albumID"], in: dictionary) ?? ""
+        let title = stringValue(for: ["title"], in: dictionary) ?? ""
+        let tags = stringArrayValue(for: "tags", in: dictionary)
+        let type = stringValue(for: ["type"], in: dictionary) ?? ""
+        let variants = dictionary["size_variants"] as? [String: Any]
+
+        return LycheePhoto(
+            id: id,
+            albumID: albumID,
+            title: title,
+            tags: tags,
+            type: type,
+            thumbURLString: variantURL(named: "thumb", in: variants),
+            smallURLString: variantURL(named: "small", in: variants),
+            mediumURLString: variantURL(named: "medium", in: variants),
+            originalURLString: variantURL(named: "original", in: variants)
+        )
+    }
+
+    private static func variantURL(named name: String, in variants: [String: Any]?) -> String? {
+        guard let variant = variants?[name] as? [String: Any] else {
+            return nil
+        }
+
+        return stringValue(for: ["url"], in: variant)
+    }
+
+    private static func stringArrayValue(for key: String, in dictionary: [String: Any]) -> [String] {
+        guard let values = dictionary[key] as? [Any] else {
+            return []
+        }
+
+        return values.compactMap { value in
+            if let string = value as? String {
+                return string
+            }
+            if let number = value as? NSNumber {
+                return number.stringValue
+            }
+            return nil
+        }
+    }
+
+    private static func stringValue(for keys: [String], in dictionary: [String: Any]) -> String? {
+        for key in keys {
+            if let string = dictionary[key] as? String {
+                let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty == false {
+                    return trimmed
+                }
+            }
+            if let number = dictionary[key] as? NSNumber {
+                return number.stringValue
+            }
+        }
+        return nil
+    }
+
+    private static func intValue(for keys: [String], in dictionary: [String: Any]) -> Int? {
+        for key in keys {
+            if let number = dictionary[key] as? NSNumber {
+                return number.intValue
+            }
+            if let string = dictionary[key] as? String,
+               let int = Int(string) {
+                return int
+            }
+        }
+
+        return nil
+    }
+}
+
 enum UploadResponseParser {
     static func parseRemoteID(from data: Data) -> String? {
         guard let json = try? JSONSerialization.jsonObject(with: data) else {

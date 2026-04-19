@@ -119,6 +119,91 @@ struct LycheeTag: Codable, Identifiable, Hashable {
     let name: String
 }
 
+struct LycheePhoto: Identifiable, Hashable {
+    let id: String
+    let albumID: String
+    let title: String
+    let tags: [String]
+    let type: String
+    let thumbURLString: String?
+    let smallURLString: String?
+    let mediumURLString: String?
+    let originalURLString: String?
+
+    var displayTitle: String {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? id : trimmed
+    }
+
+    var normalizedTags: [String] {
+        ImportedPhotoEditableMetadata.normalizedTags(tags)
+    }
+
+    var hasTitle: Bool {
+        title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    }
+
+    var hasMeaningfulTitle: Bool {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else {
+            return false
+        }
+
+        return Self.filenameLikeTitlePattern.firstMatch(
+            in: trimmed,
+            range: NSRange(trimmed.startIndex..., in: trimmed)
+        ) == nil
+    }
+
+    var needsMetadata: Bool {
+        hasMeaningfulTitle == false || normalizedTags.isEmpty
+    }
+
+    var llmPreviewURL: URL? {
+        [mediumURLString, smallURLString, thumbURLString, originalURLString]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { $0.isEmpty == false }
+            .flatMap(URL.init(string:))
+    }
+
+    private static let filenameLikeTitlePattern = try! NSRegularExpression(
+        pattern: #"(?i)\.(jpe?g|heic|png|gif|tiff?|webp|mov|mp4)$"#
+    )
+}
+
+enum ExistingPhotoMetadataFilter: String, CaseIterable, Identifiable, Hashable {
+    case missingTitleOrTags
+    case all
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .missingTitleOrTags:
+            return "Missing title or tags"
+        case .all:
+            return "All photos"
+        }
+    }
+}
+
+struct ExistingPhotoMetadataResult: Identifiable, Hashable {
+    enum Status: Hashable {
+        case pending
+        case preparing
+        case suggesting
+        case applying
+        case applied
+        case failed(message: String)
+    }
+
+    let id: String
+    let photo: LycheePhoto
+    var status: Status
+    var suggestion: LLMMetadataSuggestion?
+    var message: String
+}
+
 struct UploadResult: Identifiable, Hashable {
     enum Status: Hashable {
         case pending

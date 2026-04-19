@@ -12,6 +12,12 @@ final class AppViewModel: ObservableObject {
     @Published var albums: [LycheeAlbum] = []
     @Published var tags: [LycheeTag] = []
     @Published var selectedAlbumID: String = ""
+    @Published var existingPhotoAlbumID: String = ""
+    @Published var existingPhotoFilter: ExistingPhotoMetadataFilter = .missingTitleOrTags
+    @Published var existingPhotoOverwriteExistingTitles = false
+    @Published var existingPhotoTitleOverwriteOverrides: [String: Bool] = [:]
+    @Published var existingPhotos: [LycheePhoto] = []
+    @Published var existingPhotoResults: [ExistingPhotoMetadataResult] = []
     @Published var pendingBundle: ShareImportBundle?
     @Published var editableMetadata: [UUID: ImportedPhotoEditableMetadata] = [:]
     @Published var commonTags: [String] = []
@@ -21,11 +27,13 @@ final class AppViewModel: ObservableObject {
     @Published var destinationMessage: String = "Load albums to choose a destination."
     @Published var tagMessage: String = "Load tags to inspect Lychee tag suggestions."
     @Published var uploadMessage: String = "Waiting for photos and a destination album."
+    @Published var existingPhotoMessage: String = "Choose an album to scan existing photos."
     @Published var llmMessage: String = "Configure an LLM provider, then request suggestions for pending photos."
     @Published var connectionState: AsyncButtonState = .idle
     @Published var albumState: AsyncButtonState = .idle
     @Published var tagState: AsyncButtonState = .idle
     @Published var uploadState: AsyncButtonState = .idle
+    @Published var existingPhotoState: AsyncButtonState = .idle
     @Published var llmState: AsyncButtonState = .idle
     @Published var debugLog: String = "No debug trace yet."
     @Published var llmDiagnostic: LLMDiagnosticSnapshot?
@@ -57,6 +65,7 @@ final class AppViewModel: ObservableObject {
             self.configuration = loaded.0
             self.credentials = loaded.1
             self.selectedAlbumID = loaded.0.selectedAlbumID
+            self.existingPhotoAlbumID = loaded.0.selectedAlbumID
         } catch {
             self.configuration = LycheeConfiguration()
             self.credentials = LycheeCredentials()
@@ -74,6 +83,15 @@ final class AppViewModel: ObservableObject {
 
     var canSuggestMetadata: Bool {
         pendingBundle != nil && llmState.isRunning == false
+    }
+
+    var filteredExistingPhotos: [LycheePhoto] {
+        switch existingPhotoFilter {
+        case .missingTitleOrTags:
+            return existingPhotos.filter(\.needsMetadata)
+        case .all:
+            return existingPhotos
+        }
     }
 
     var configuredServerLabel: String {
@@ -227,6 +245,99 @@ final class AppViewModel: ObservableObject {
 
         tags.append(LycheeTag(id: trimmedName, name: trimmedName))
         tags.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    func prepareExistingPhotoMetadataWindow() {
+        if existingPhotoAlbumID.isEmpty {
+            existingPhotoAlbumID = selectedAlbumID
+        }
+    }
+
+    func existingPhotoShouldOverwriteTitle(for photo: LycheePhoto) -> Bool {
+        existingPhotoTitleOverwriteOverrides[photo.id] ?? existingPhotoOverwriteExistingTitles
+    }
+
+    func existingPhotoShouldApplyTitle(for photo: LycheePhoto) -> Bool {
+        photo.hasMeaningfulTitle == false || existingPhotoShouldOverwriteTitle(for: photo)
+    }
+
+    func setExistingPhotoTitleOverwrite(_ shouldOverwrite: Bool, for photoID: String) {
+        existingPhotoTitleOverwriteOverrides[photoID] = shouldOverwrite
+    }
+
+    func loadExistingPhotosForMetadata() async {
+        guard existingPhotoState.isRunning == false else { return }
+        guard albums.contains(where: { $0.id == existingPhotoAlbumID }) else {
+            existingPhotoMessage = "Choose an album before loading photos."
+            existingPhotoState = .failed
+            return
+        }
+
+        existingPhotoState = .running
+        existingPhotoMessage = "Loading album photos..."
+        existingPhotoResults = []
+        existingPhotoTitleOverwriteOverrides = [:]
+
+        do {
+            let photos = try await makeClient().fetchPhotos(albumID: existingPhotoAlbumID)
+            existingPhotos = photos
+            let targetCount = filteredExistingPhotos.count
+            existingPhotoMessage = photos.isEmpty
+                ? "No photos found in this album."
+                : "Loaded \(photos.count) photos. \(targetCount) match the current filter."
+            existingPhotoState = .succeeded
+        } catch {
+            existingPhotoMessage = error.localizedDescription
+            existingPhotoState = .failed
+        }
+    }
+
+    func suggestMetadataForExistingPhotos() async {
+        guard existingPhotoState.isRunning == false else { return }
+        let targetPhotos = filteredExistingPhotos
+        guard targetPhotos.isEmpty == false else {
+            existingPhotoMessage = "No photos match the current filter."
+            return
+        }
+
+        existingPhotoState = .running
+        existingPhotoMessage = "Requesting LLM suggestions for \(targetPhotos.count) existing photos..."
+        existingPhotoResults = targetPhotos.map {
+            ExistingPhotoMetadataResult(id: $0.id, photo: $0, status: .pending, suggestion: nil, message: "Waiting")
+        }
+
+        let client = makeClient()
+        var successCount = 0
+        var lastError: Error?
+
+        for photo in targetPhotos {
+            updateExistingPhotoResult(photoID: photo.id, status: .preparing, message: "Preparing preview")
+
+            do {
+                let shouldApplyTitle = existingPhotoShouldApplyTitle(for: photo)
+                let suggestion = try await suggestMetadataForExistingPhoto(photo, client: client, shouldApplyTitle: shouldApplyTitle)
+                successCount += 1
+                let titleMessage: String
+                if shouldApplyTitle {
+                    titleMessage = suggestion.normalizedTitle == nil ? "rename skipped: no title suggested" : "rename requested"
+                } else {
+                    titleMessage = "rename skipped: existing title kept"
+                }
+                updateExistingPhotoResult(photoID: photo.id, status: .applied, suggestion: suggestion, message: "Applied, \(titleMessage)")
+            } catch {
+                lastError = error
+                updateExistingPhotoResult(photoID: photo.id, status: .failed(message: error.localizedDescription), message: error.localizedDescription)
+                break
+            }
+        }
+
+        if let lastError {
+            existingPhotoMessage = "Updated \(successCount) of \(targetPhotos.count) photos. \(lastError.localizedDescription)"
+            existingPhotoState = .failed
+        } else {
+            existingPhotoMessage = "Updated metadata for \(successCount) photos."
+            existingPhotoState = .succeeded
+        }
     }
 
     func suggestMetadata(for item: ImportedPhoto) async {
@@ -420,6 +531,127 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    private func suggestMetadataForExistingPhoto(
+        _ photo: LycheePhoto,
+        client: LycheeClient,
+        shouldApplyTitle: Bool
+    ) async throws -> LLMMetadataSuggestion {
+        let previewData = try await client.downloadPreview(for: photo)
+        let image = try LLMImagePreparer.prepare(sourcePhotoID: UUID(), data: previewData, options: llmConfiguration.imageOptions)
+        var requestConfiguration = llmConfiguration
+        requestConfiguration.shouldSuggestTitle = shouldApplyTitle
+        var additionalContext = [
+            "Current Lychee title: \(photo.title.isEmpty ? "None" : photo.title)",
+            "Current Lychee tags: \(photo.normalizedTags.isEmpty ? "None" : photo.normalizedTags.joined(separator: ", "))"
+        ]
+        if shouldApplyTitle {
+            additionalContext.append("A title will be applied to this Lychee photo. Return a non-empty title value.")
+        } else {
+            additionalContext.append("The current Lychee title will be kept. Return an empty title value.")
+        }
+        let request = LLMMetadataRequest(
+            photoName: photo.displayTitle,
+            image: image,
+            configuration: requestConfiguration,
+            additionalContext: additionalContext
+        )
+        let provider = try llmProviderFactory.makeProvider(configuration: llmConfiguration, credentials: llmCredentials)
+
+        llmDiagnostic = LLMDiagnosticSnapshot(
+            id: UUID(),
+            createdAt: Date(),
+            photoName: photo.displayTitle,
+            preparedImage: image,
+            prompt: request.prompt,
+            response: "Waiting for LLM response...",
+            suggestion: nil
+        )
+
+        updateExistingPhotoResult(photoID: photo.id, status: .suggesting, message: "Requesting suggestion")
+        let result = try await provider.suggestMetadataWithDiagnostics(for: request)
+
+        llmDiagnostic = LLMDiagnosticSnapshot(
+            id: UUID(),
+            createdAt: Date(),
+            photoName: photo.displayTitle,
+            preparedImage: image,
+            prompt: request.prompt,
+            response: result.rawResponse,
+            suggestion: result.suggestion
+        )
+
+        updateExistingPhotoResult(photoID: photo.id, status: .applying, suggestion: result.suggestion, message: "Applying metadata")
+        appendExistingPhotoTitleDecisionTrace(
+            photo: photo,
+            shouldApplyTitle: shouldApplyTitle,
+            suggestedTitle: result.suggestion.normalizedTitle
+        )
+
+        if shouldApplyTitle {
+            if let title = result.suggestion.normalizedTitle {
+                try await client.renamePhoto(photoID: photo.id, title: title)
+            } else {
+                updateExistingPhotoResult(
+                    photoID: photo.id,
+                    status: .applying,
+                    suggestion: result.suggestion,
+                    message: "Applying metadata, no title suggested"
+                )
+            }
+        }
+
+        if llmConfiguration.shouldSuggestTags {
+            let suggestedTags = result.suggestion.normalizedTags
+            if suggestedTags.isEmpty == false {
+                try await client.applyTags(photoID: photo.id, tags: suggestedTags)
+                suggestedTags.forEach(addLocalTagSuggestion)
+            }
+        }
+
+        applyExistingPhotoSuggestion(result.suggestion, toPhotoID: photo.id, shouldApplyTitle: shouldApplyTitle)
+        return result.suggestion
+    }
+
+    private func updateExistingPhotoResult(
+        photoID: String,
+        status: ExistingPhotoMetadataResult.Status,
+        suggestion: LLMMetadataSuggestion? = nil,
+        message: String
+    ) {
+        guard let index = existingPhotoResults.firstIndex(where: { $0.id == photoID }) else {
+            return
+        }
+
+        existingPhotoResults[index].status = status
+        if let suggestion {
+            existingPhotoResults[index].suggestion = suggestion
+        }
+        existingPhotoResults[index].message = message
+    }
+
+    private func applyExistingPhotoSuggestion(
+        _ suggestion: LLMMetadataSuggestion,
+        toPhotoID photoID: String,
+        shouldApplyTitle: Bool
+    ) {
+        guard let index = existingPhotos.firstIndex(where: { $0.id == photoID }) else {
+            return
+        }
+
+        let current = existingPhotos[index]
+        existingPhotos[index] = LycheePhoto(
+            id: current.id,
+            albumID: current.albumID,
+            title: shouldApplyTitle ? (suggestion.normalizedTitle ?? current.title) : current.title,
+            tags: ImportedPhotoEditableMetadata.normalizedTags(current.tags + suggestion.normalizedTags),
+            type: current.type,
+            thumbURLString: current.thumbURLString,
+            smallURLString: current.smallURLString,
+            mediumURLString: current.mediumURLString,
+            originalURLString: current.originalURLString
+        )
+    }
+
     private func applySuggestion(_ suggestion: LLMMetadataSuggestion, to item: ImportedPhoto) {
         var metadata = editableMetadata[item.id] ?? ImportedPhotoEditableMetadata()
 
@@ -492,6 +724,41 @@ final class AppViewModel: ObservableObject {
         } else {
             debugLog += "\n\n--------------------\n\n" + trace.formatted
         }
+    }
+
+    private func appendExistingPhotoTitleDecisionTrace(
+        photo: LycheePhoto,
+        shouldApplyTitle: Bool,
+        suggestedTitle: String?
+    ) {
+        let reason: String
+        if shouldApplyTitle == false {
+            reason = "Skipped because the photo has a meaningful title and title replacement is disabled."
+        } else if suggestedTitle == nil {
+            reason = "Skipped because the LLM response did not contain a non-empty title."
+        } else {
+            reason = "Will call Photo::rename."
+        }
+
+        appendDebugTrace(LycheeDebugTrace(
+            stage: "Photo::rename decision",
+            requestURL: configuration.serverURLString.trimmingCharacters(in: .whitespacesAndNewlines),
+            method: "INTERNAL",
+            requestHeaders: [:],
+            requestBody: """
+            {
+              "photo_id" : "\(photo.id)",
+              "current_title" : "\(photo.title)",
+              "has_meaningful_title" : \(photo.hasMeaningfulTitle),
+              "should_apply_title" : \(shouldApplyTitle),
+              "suggested_title" : "\(suggestedTitle ?? "")"
+            }
+            """,
+            responseStatus: nil,
+            responseHeaders: [:],
+            responseBody: reason,
+            cookieDump: "Not a network request"
+        ))
     }
 }
 

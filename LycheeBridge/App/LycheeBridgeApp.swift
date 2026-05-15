@@ -1,9 +1,22 @@
 import AppKit
 import SwiftUI
 
+extension Notification.Name {
+    static let lycheeBridgeDidReceiveOpenURLs = Notification.Name("LycheeBridgeDidReceiveOpenURLs")
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApplication.shared.applicationIconImage = NSImage(named: "AppIcon")
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        NotificationCenter.default.post(
+            name: .lycheeBridgeDidReceiveOpenURLs,
+            object: nil,
+            userInfo: ["urls": urls]
+        )
+        NSApplication.shared.activate(ignoringOtherApps: true)
     }
 }
 
@@ -15,6 +28,15 @@ struct LycheeBridgeApp: App {
     var body: some Scene {
         Window("LycheeBridge", id: "main") {
             ContentView(viewModel: viewModel)
+                .onReceive(NotificationCenter.default.publisher(for: .lycheeBridgeDidReceiveOpenURLs)) { notification in
+                    guard let urls = notification.userInfo?["urls"] as? [URL] else { return }
+
+                    Task {
+                        for url in urls {
+                            await viewModel.handleIncomingURL(url)
+                        }
+                    }
+                }
         }
         .windowResizability(.contentSize)
 
@@ -38,6 +60,11 @@ struct LycheeBridgeApp: App {
         }
         .defaultSize(width: 720, height: 520)
 
+        WindowGroup("Pixelfed Settings", id: "pixelfedSettings") {
+            PixelfedSettingsView(viewModel: viewModel)
+        }
+        .defaultSize(width: 720, height: 520)
+
         WindowGroup("LLM Settings", id: "llmSettings") {
             LLMSettingsView(viewModel: viewModel)
         }
@@ -56,6 +83,7 @@ struct LycheeBridgeApp: App {
         .commands {
             DiagnosticsCommands()
             LycheeCommands()
+            PixelfedCommands()
             LLMCommands()
         }
     }
@@ -97,6 +125,19 @@ struct LLMCommands: Commands {
     }
 }
 
+struct PixelfedCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandMenu("Pixelfed") {
+            Button("Show Pixelfed Settings") {
+                openWindow(id: "pixelfedSettings")
+            }
+            .keyboardShortcut("p", modifiers: [.command, .shift])
+        }
+    }
+}
+
 struct DiagnosticsCommands: Commands {
     @Environment(\.openWindow) private var openWindow
 
@@ -112,6 +153,92 @@ struct DiagnosticsCommands: Commands {
             }
             .keyboardShortcut("m", modifiers: [.command, .shift])
         }
+    }
+}
+
+struct PixelfedSettingsView: View {
+    @ObservedObject var viewModel: AppViewModel
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Pixelfed Settings")
+                    .font(.title2.bold())
+
+                Text("Configure optional cross-posting so each uploaded photo can also be published as an individual Pixelfed post.")
+                    .foregroundStyle(.secondary)
+
+                GroupBox("Connection") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Toggle("Post uploaded photos to Pixelfed", isOn: $viewModel.pixelfedConfiguration.isEnabled)
+                            .toggleStyle(.switch)
+
+                        TextField("Pixelfed instance URL", text: $viewModel.pixelfedConfiguration.instanceURLString)
+                            .textFieldStyle(.roundedBorder)
+
+                        Text(viewModel.pixelfedCredentials.accessToken.isEmpty
+                             ? "Not connected yet."
+                             : "Pixelfed account connected.")
+                            .font(.callout)
+                            .foregroundStyle(viewModel.pixelfedCredentials.accessToken.isEmpty ? Color.secondary : Color.green)
+
+                        Text("Use the browser-based Pixelfed login to connect LycheeBridge to your account.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                GroupBox("Posting") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Picker("Visibility", selection: $viewModel.pixelfedConfiguration.visibility) {
+                            ForEach(PixelfedConfiguration.Visibility.allCases) { visibility in
+                                Text(visibility.title).tag(visibility)
+                            }
+                        }
+                        .pickerStyle(.menu)
+
+                        Toggle("Use the photo title as the Pixelfed caption", isOn: $viewModel.pixelfedConfiguration.useTitleAsCaption)
+                            .toggleStyle(.switch)
+
+                        Toggle("Append Lychee tags as Pixelfed hashtags", isOn: $viewModel.pixelfedConfiguration.appendTagsAsHashtags)
+                            .toggleStyle(.switch)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                Text("The first Pixelfed version will publish one post per uploaded photo. Title and tags are mapped from the metadata you already edit in LycheeBridge.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 12) {
+                    Button("Connect with Pixelfed") {
+                        Task { await viewModel.startPixelfedOAuth() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(viewModel.pixelfedState == .running)
+
+                    Button("Disconnect") {
+                        viewModel.disconnectPixelfed()
+                    }
+                    .disabled(viewModel.pixelfedCredentials.accessToken.isEmpty && viewModel.pixelfedConfiguration.pendingOAuthTransaction == nil)
+
+                    Button("Test Pixelfed Connection") {
+                        Task { await viewModel.testPixelfedConnection() }
+                    }
+                    .disabled(viewModel.pixelfedState == .running)
+
+                    Button("Save Pixelfed Settings") {
+                        viewModel.savePixelfedConfiguration()
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    WindowStatusLine(message: viewModel.pixelfedMessage, state: viewModel.pixelfedState)
+                }
+            }
+            .padding(20)
+        }
+        .frame(minWidth: 620, minHeight: 420)
     }
 }
 

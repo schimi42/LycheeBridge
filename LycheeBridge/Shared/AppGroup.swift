@@ -4,6 +4,8 @@ enum AppGroup {
     static let identifier = "group.de.lumirio.LycheeBridge"
     static let incomingURLScheme = "lycheebridge"
     static let incomingURLHost = "import"
+    static let pixelfedOAuthHost = "oauth"
+    static let pixelfedOAuthPath = "/pixelfed"
     static let importsDirectoryName = "IncomingBundles"
 }
 

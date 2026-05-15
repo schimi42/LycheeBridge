@@ -24,11 +24,6 @@ struct ContentView: View {
             .task {
                 await viewModel.loadInitialState()
             }
-            .onOpenURL { url in
-                Task {
-                    await viewModel.handleIncomingURL(url)
-                }
-            }
             .onChange(of: viewModel.selectedAlbumID) { _, _ in
                 viewModel.persistSelectedAlbumID()
             }
@@ -626,6 +621,13 @@ struct UploadResultRow: View {
             Text("Tags: \(metadataStatusText(result.tagStatus))")
                 .font(.caption)
                 .foregroundStyle(metadataStatusColor(result.tagStatus))
+                .textSelection(.enabled)
+        }
+
+        if result.pixelfedStatus != .notRequested {
+            Text("Pixelfed: \(metadataStatusText(result.pixelfedStatus))")
+                .font(.caption)
+                .foregroundStyle(metadataStatusColor(result.pixelfedStatus))
                 .textSelection(.enabled)
         }
     }

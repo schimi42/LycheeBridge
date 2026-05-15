@@ -30,3 +30,32 @@ struct LycheeConfigurationStore {
         try SharedPaths.containerURL().appendingPathComponent(configurationFilename, isDirectory: false)
     }
 }
+
+struct PixelfedConfigurationStore {
+    private let configurationFilename = "pixelfed.configuration.json"
+    private let keychainStore = KeychainStore()
+    private let decoder = JSONDecoder()
+    private let encoder = JSONEncoder()
+
+    func load() throws -> (PixelfedConfiguration, PixelfedCredentials) {
+        let configurationURL = try configurationURL()
+        let credentials = PixelfedCredentials(accessToken: try keychainStore.loadPixelfedAccessToken())
+
+        guard FileManager.default.fileExists(atPath: configurationURL.path) else {
+            return (PixelfedConfiguration(), credentials)
+        }
+
+        let data = try Data(contentsOf: configurationURL)
+        return (try decoder.decode(PixelfedConfiguration.self, from: data), credentials)
+    }
+
+    func save(configuration: PixelfedConfiguration, credentials: PixelfedCredentials) throws {
+        let data = try encoder.encode(configuration)
+        try data.write(to: configurationURL(), options: .atomic)
+        try keychainStore.savePixelfedAccessToken(credentials.accessToken)
+    }
+
+    private func configurationURL() throws -> URL {
+        try SharedPaths.containerURL().appendingPathComponent(configurationFilename, isDirectory: false)
+    }
+}

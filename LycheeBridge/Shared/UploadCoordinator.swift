@@ -16,6 +16,8 @@ final class UploadCoordinator: ObservableObject {
         bundle: ShareImportBundle,
         albumID: String,
         client: LycheeClient,
+        pixelfedClient: PixelfedClient?,
+        pixelfedConfiguration: PixelfedConfiguration,
         editableMetadata: [UUID: ImportedPhotoEditableMetadata],
         commonTags: [String]
     ) async {
@@ -32,6 +34,7 @@ final class UploadCoordinator: ObservableObject {
                 status: .pending,
                 titleStatus: metadata.title == nil ? .notRequested : .pending,
                 tagStatus: metadata.tags.isEmpty ? .notRequested : .pending,
+                pixelfedStatus: pixelfedClient == nil ? .notRequested : .pending,
                 serverResponseSummary: nil
             )
         }
@@ -46,8 +49,18 @@ final class UploadCoordinator: ObservableObject {
                 let metadata = metadataRequest(for: item, editableMetadata: editableMetadata, commonTags: commonTags)
                 if let remoteID {
                     await applyMetadata(metadata, photoID: remoteID, itemID: item.id, client: client)
+                    if let pixelfedClient {
+                        await postToPixelfed(
+                            item: item,
+                            metadata: metadata,
+                            itemID: item.id,
+                            client: pixelfedClient,
+                            configuration: pixelfedConfiguration
+                        )
+                    }
                 } else {
                     markPendingMetadataSkipped(for: item.id, message: "Lychee did not return a photo id.")
+                    markPendingPixelfedSkipped(for: item.id, message: "Lychee did not return a photo id.")
                 }
                 successCount += 1
                 updateStatus(
@@ -133,6 +146,13 @@ final class UploadCoordinator: ObservableObject {
         }
     }
 
+    private func markPendingPixelfedSkipped(for id: UUID, message: String) {
+        guard let index = results.firstIndex(where: { $0.id == id }) else { return }
+        if case .pending = results[index].pixelfedStatus {
+            results[index].pixelfedStatus = .skipped(message: message)
+        }
+    }
+
     private func updateStatus(for id: UUID, status: UploadResult.Status, completedAt: Date?, response: String?) {
         guard let index = results.firstIndex(where: { $0.id == id }) else { return }
         results[index].status = status
@@ -148,6 +168,61 @@ final class UploadCoordinator: ObservableObject {
     private func updateTagStatus(for id: UUID, status: MetadataOperationStatus) {
         guard let index = results.firstIndex(where: { $0.id == id }) else { return }
         results[index].tagStatus = status
+    }
+
+    private func updatePixelfedStatus(for id: UUID, status: MetadataOperationStatus) {
+        guard let index = results.firstIndex(where: { $0.id == id }) else { return }
+        results[index].pixelfedStatus = status
+    }
+
+    private func postToPixelfed(
+        item: ImportedPhoto,
+        metadata: (title: String?, tags: [String]),
+        itemID: UUID,
+        client: PixelfedClient,
+        configuration: PixelfedConfiguration
+    ) async {
+        updatePixelfedStatus(for: itemID, status: .applying)
+
+        do {
+            let mediaID = try await client.uploadMedia(photo: item)
+            let caption = pixelfedCaption(for: metadata, configuration: configuration)
+            _ = try await client.createStatus(
+                caption: caption,
+                mediaIDs: [mediaID],
+                visibility: configuration.visibility
+            )
+            updatePixelfedStatus(for: itemID, status: .applied)
+        } catch {
+            updatePixelfedStatus(for: itemID, status: .failed(message: error.localizedDescription))
+        }
+    }
+
+    private func pixelfedCaption(
+        for metadata: (title: String?, tags: [String]),
+        configuration: PixelfedConfiguration
+    ) -> String {
+        var sections: [String] = []
+
+        if configuration.useTitleAsCaption, let title = metadata.title {
+            sections.append(title)
+        }
+
+        if configuration.appendTagsAsHashtags {
+            let hashtags = metadata.tags.compactMap(pixelfedHashtag(from:))
+            if hashtags.isEmpty == false {
+                sections.append(hashtags.joined(separator: " "))
+            }
+        }
+
+        return sections.joined(separator: "\n\n")
+    }
+
+    private func pixelfedHashtag(from tag: String) -> String? {
+        let scalarView = tag.trimmingCharacters(in: .whitespacesAndNewlines).unicodeScalars
+        let filtered = scalarView.filter { CharacterSet.alphanumerics.contains($0) }
+        let normalized = String(String.UnicodeScalarView(filtered))
+        return normalized.isEmpty ? nil : "#\(normalized)"
     }
 }
 

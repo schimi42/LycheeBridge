@@ -102,6 +102,59 @@ struct LycheeCredentials: Hashable {
     var password: String = ""
 }
 
+struct PixelfedConfiguration: Codable, Hashable {
+    enum Visibility: String, Codable, CaseIterable, Identifiable {
+        case `public`
+        case unlisted
+        case `private`
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .public:
+                return "Public"
+            case .unlisted:
+                return "Unlisted"
+            case .private:
+                return "Private"
+            }
+        }
+    }
+
+    var isEnabled: Bool = false
+    var instanceURLString: String = "https://pixelfed.social"
+    var visibility: Visibility = .unlisted
+    var useTitleAsCaption: Bool = true
+    var appendTagsAsHashtags: Bool = true
+    var pendingOAuthTransaction: PixelfedPendingOAuthTransaction?
+
+    var instanceURL: URL? {
+        URL(string: instanceURLString.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+}
+
+struct PixelfedPendingOAuthTransaction: Codable, Hashable {
+    let instanceURLString: String
+    let clientID: String
+    let clientSecret: String
+    let redirectURIString: String
+    let state: String
+    let createdAt: Date
+
+    var instanceURL: URL? {
+        URL(string: instanceURLString)
+    }
+
+    var redirectURI: URL? {
+        URL(string: redirectURIString)
+    }
+}
+
+struct PixelfedCredentials: Hashable {
+    var accessToken: String = ""
+}
+
 struct LycheeAlbum: Codable, Identifiable, Hashable {
     let id: String
     let title: String
@@ -220,6 +273,7 @@ struct UploadResult: Identifiable, Hashable {
     var status: Status
     var titleStatus: MetadataOperationStatus
     var tagStatus: MetadataOperationStatus
+    var pixelfedStatus: MetadataOperationStatus
     var serverResponseSummary: String?
 }
 

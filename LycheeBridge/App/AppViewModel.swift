@@ -6,6 +6,8 @@ import UniformTypeIdentifiers
 @MainActor
 final class AppViewModel: ObservableObject {
     @Published var configuration: LycheeConfiguration
+    @Published var pixelfedConfiguration: PixelfedConfiguration
+    @Published var pixelfedCredentials: PixelfedCredentials
     @Published var llmConfiguration: LLMConfiguration
     @Published var llmCredentials: LLMCredentials
     @Published var credentials: LycheeCredentials
@@ -27,12 +29,14 @@ final class AppViewModel: ObservableObject {
     @Published var destinationMessage: String = "Load albums to choose a destination."
     @Published var tagMessage: String = "Load tags to inspect Lychee tag suggestions."
     @Published var uploadMessage: String = "Waiting for photos and a destination album."
+    @Published var pixelfedMessage: String = "Configure Pixelfed to cross-post uploaded photos."
     @Published var existingPhotoMessage: String = "Choose an album to scan existing photos."
     @Published var llmMessage: String = "Configure an LLM provider, then request suggestions for pending photos."
     @Published var connectionState: AsyncButtonState = .idle
     @Published var albumState: AsyncButtonState = .idle
     @Published var tagState: AsyncButtonState = .idle
     @Published var uploadState: AsyncButtonState = .idle
+    @Published var pixelfedState: AsyncButtonState = .idle
     @Published var existingPhotoState: AsyncButtonState = .idle
     @Published var llmState: AsyncButtonState = .idle
     @Published var debugLog: String = "No debug trace yet."
@@ -42,11 +46,26 @@ final class AppViewModel: ObservableObject {
     let uploader = UploadCoordinator()
 
     private let configurationStore = LycheeConfigurationStore()
+    private let pixelfedConfigurationStore = PixelfedConfigurationStore()
     private let llmConfigurationStore = LLMConfigurationStore()
     private let importStore = SharedImportStore()
     private let llmProviderFactory = LLMProviderFactory()
 
     init() {
+        let loadedPixelfedConfiguration: PixelfedConfiguration
+        let loadedPixelfedCredentials: PixelfedCredentials
+        do {
+            let loaded = try pixelfedConfigurationStore.load()
+            loadedPixelfedConfiguration = loaded.0
+            loadedPixelfedCredentials = loaded.1
+        } catch {
+            loadedPixelfedConfiguration = PixelfedConfiguration()
+            loadedPixelfedCredentials = PixelfedCredentials()
+            self.pixelfedMessage = error.localizedDescription
+        }
+        self.pixelfedConfiguration = loadedPixelfedConfiguration
+        self.pixelfedCredentials = loadedPixelfedCredentials
+
         let loadedLLMConfiguration: LLMConfiguration
         let loadedLLMCredentials: LLMCredentials
         do {
@@ -71,6 +90,91 @@ final class AppViewModel: ObservableObject {
             self.configuration = LycheeConfiguration()
             self.credentials = LycheeCredentials()
             self.connectionMessage = error.localizedDescription
+        }
+    }
+
+    func savePixelfedConfiguration() {
+        do {
+            try pixelfedConfigurationStore.save(configuration: pixelfedConfiguration, credentials: pixelfedCredentials)
+            pixelfedMessage = pixelfedConfiguration.isEnabled
+                ? "Saved Pixelfed settings."
+                : "Saved Pixelfed settings. Cross-posting is disabled."
+            pixelfedState = .succeeded
+        } catch {
+            pixelfedMessage = error.localizedDescription
+            pixelfedState = .failed
+        }
+    }
+
+    func startPixelfedOAuth() async {
+        pixelfedState = .running
+        pixelfedMessage = "Preparing Pixelfed login…"
+
+        do {
+            let redirectURI = try pixelfedOAuthRedirectURI()
+            let registration = try await PixelfedClient.registerOAuthApplication(
+                instanceURL: pixelfedConfiguration.instanceURL,
+                redirectURI: redirectURI
+            ) { [weak self] trace in
+                Task { @MainActor in
+                    self?.appendDebugTrace(trace)
+                }
+            }
+
+            let state = UUID().uuidString
+            pixelfedConfiguration.pendingOAuthTransaction = PixelfedPendingOAuthTransaction(
+                instanceURLString: registration.instanceURL.absoluteString,
+                clientID: registration.clientID,
+                clientSecret: registration.clientSecret,
+                redirectURIString: redirectURI.absoluteString,
+                state: state,
+                createdAt: Date()
+            )
+            try pixelfedConfigurationStore.save(configuration: pixelfedConfiguration, credentials: pixelfedCredentials)
+
+            let authorizationURL = try PixelfedClient.makeAuthorizationURL(
+                instanceURL: registration.instanceURL,
+                clientID: registration.clientID,
+                redirectURI: redirectURI,
+                state: state
+            )
+
+            NSWorkspace.shared.open(authorizationURL)
+            pixelfedMessage = "Browser opened. Authorize LycheeBridge in Pixelfed to finish connecting."
+            pixelfedState = .idle
+        } catch {
+            pixelfedConfiguration.pendingOAuthTransaction = nil
+            pixelfedMessage = error.localizedDescription
+            pixelfedState = .failed
+        }
+    }
+
+    func disconnectPixelfed() {
+        pixelfedCredentials.accessToken = ""
+        pixelfedConfiguration.pendingOAuthTransaction = nil
+
+        do {
+            try pixelfedConfigurationStore.save(configuration: pixelfedConfiguration, credentials: pixelfedCredentials)
+            pixelfedMessage = "Disconnected from Pixelfed."
+            pixelfedState = .succeeded
+        } catch {
+            pixelfedMessage = error.localizedDescription
+            pixelfedState = .failed
+        }
+    }
+
+    func testPixelfedConnection() async {
+        pixelfedState = .running
+        pixelfedMessage = "Connecting to Pixelfed…"
+
+        do {
+            let client = try makePixelfedClient()
+            let accountLabel = try await client.verifyCredentials()
+            pixelfedMessage = "Connected to Pixelfed as \(accountLabel)."
+            pixelfedState = .succeeded
+        } catch {
+            pixelfedMessage = error.localizedDescription
+            pixelfedState = .failed
         }
     }
 
@@ -122,14 +226,18 @@ final class AppViewModel: ObservableObject {
         guard url.scheme == AppGroup.incomingURLScheme else { return }
         if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
            components.host == AppGroup.incomingURLHost,
-                  let bundleID = components.queryItems?.first(where: { $0.name == "id" })?.value,
-                  let uuid = UUID(uuidString: bundleID) {
+           let bundleID = components.queryItems?.first(where: { $0.name == "id" })?.value,
+           let uuid = UUID(uuidString: bundleID) {
             do {
                 try importBundle(withID: uuid)
                 NSApplication.shared.activate(ignoringOtherApps: true)
             } catch {
                 importMessage = error.localizedDescription
             }
+        } else if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                  components.host == AppGroup.pixelfedOAuthHost,
+                  components.path == AppGroup.pixelfedOAuthPath {
+            await handlePixelfedOAuthCallback(url)
         } else {
             await refreshPendingBundle()
         }
@@ -484,10 +592,13 @@ final class AppViewModel: ObservableObject {
         uploader.reset()
 
         let client = makeClient()
+        let pixelfedClient = try? makePixelfedClientIfEnabled()
         await uploader.upload(
             bundle: pendingBundle,
             albumID: selectedAlbumID,
             client: client,
+            pixelfedClient: pixelfedClient,
+            pixelfedConfiguration: pixelfedConfiguration,
             editableMetadata: editableMetadata,
             commonTags: commonTags
         )
@@ -499,6 +610,7 @@ final class AppViewModel: ObservableObject {
         let hasMetadataFailures = uploader.results.contains {
             if case .failed = $0.titleStatus { return true }
             if case .failed = $0.tagStatus { return true }
+            if case .failed = $0.pixelfedStatus { return true }
             return false
         }
 
@@ -557,6 +669,104 @@ final class AppViewModel: ObservableObject {
             Task { @MainActor in
                 self?.appendDebugTrace(trace)
             }
+        }
+    }
+
+    private func makePixelfedClientIfEnabled() throws -> PixelfedClient? {
+        guard pixelfedConfiguration.isEnabled else {
+            return nil
+        }
+
+        return try makePixelfedClient()
+    }
+
+    private func makePixelfedClient() throws -> PixelfedClient {
+        try PixelfedClient(
+            configuration: pixelfedConfiguration,
+            credentials: pixelfedCredentials
+        ) { [weak self] trace in
+            Task { @MainActor in
+                self?.appendDebugTrace(trace)
+            }
+        }
+    }
+
+    private func pixelfedOAuthRedirectURI() throws -> URL {
+        var components = URLComponents()
+        components.scheme = AppGroup.incomingURLScheme
+        components.host = AppGroup.pixelfedOAuthHost
+        components.path = AppGroup.pixelfedOAuthPath
+
+        guard let url = components.url else {
+            throw PixelfedClientError.invalidServerURL
+        }
+
+        return url
+    }
+
+    private func handlePixelfedOAuthCallback(_ url: URL) async {
+        pixelfedState = .running
+        NSApplication.shared.activate(ignoringOtherApps: true)
+
+        guard let transaction = pixelfedConfiguration.pendingOAuthTransaction else {
+            pixelfedMessage = "No pending Pixelfed login was found."
+            pixelfedState = .failed
+            return
+        }
+
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            pixelfedMessage = "Pixelfed returned an invalid callback URL."
+            pixelfedState = .failed
+            return
+        }
+
+        if let error = components.queryItems?.first(where: { $0.name == "error" })?.value {
+            pixelfedConfiguration.pendingOAuthTransaction = nil
+            pixelfedMessage = "Pixelfed login failed: \(error)"
+            pixelfedState = .failed
+            return
+        }
+
+        guard
+            let returnedState = components.queryItems?.first(where: { $0.name == "state" })?.value,
+            returnedState == transaction.state
+        else {
+            pixelfedConfiguration.pendingOAuthTransaction = nil
+            pixelfedMessage = "Pixelfed login state did not match the expected request."
+            pixelfedState = .failed
+            return
+        }
+
+        guard let code = components.queryItems?.first(where: { $0.name == "code" })?.value,
+              code.isEmpty == false else {
+            pixelfedConfiguration.pendingOAuthTransaction = nil
+            pixelfedMessage = "Pixelfed did not return an authorization code."
+            pixelfedState = .failed
+            return
+        }
+
+        do {
+            let accessToken = try await PixelfedClient.exchangeAuthorizationCode(
+                transaction: transaction,
+                code: code
+            ) { [weak self] trace in
+                Task { @MainActor in
+                    self?.appendDebugTrace(trace)
+                }
+            }
+
+            pixelfedCredentials.accessToken = accessToken
+            pixelfedConfiguration.pendingOAuthTransaction = nil
+            try pixelfedConfigurationStore.save(configuration: pixelfedConfiguration, credentials: pixelfedCredentials)
+
+            let client = try makePixelfedClient()
+            let accountLabel = try await client.verifyCredentials()
+            pixelfedMessage = "Connected to Pixelfed as \(accountLabel)."
+            pixelfedState = .succeeded
+        } catch {
+            pixelfedConfiguration.pendingOAuthTransaction = nil
+            pixelfedMessage = error.localizedDescription
+            pixelfedState = .failed
         }
     }
 

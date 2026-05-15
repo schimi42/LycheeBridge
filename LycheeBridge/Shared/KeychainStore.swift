@@ -4,6 +4,7 @@ import Security
 struct KeychainStore {
     private static let lycheeService = "LycheeBridge.LycheeCredentials"
     private static let openAIService = "LycheeBridge.OpenAICredentials"
+    private static let pixelfedService = "LycheeBridge.PixelfedCredentials"
     private static let defaultAccount = "default"
 
     func save(password: String) throws {
@@ -20,6 +21,14 @@ struct KeychainStore {
 
     func loadOpenAIAPIKey() throws -> String {
         try loadSecret(service: Self.openAIService, account: Self.defaultAccount)
+    }
+
+    func savePixelfedAccessToken(_ accessToken: String) throws {
+        try saveSecret(accessToken, service: Self.pixelfedService, account: Self.defaultAccount)
+    }
+
+    func loadPixelfedAccessToken() throws -> String {
+        try loadSecret(service: Self.pixelfedService, account: Self.defaultAccount)
     }
 
     private func saveSecret(_ secret: String, service: String, account: String) throws {
